@@ -1,0 +1,14 @@
+.env
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+htmlcov/
+data/*
+!data/.gitkeep
+migration-output/
+*.pem
+*.key
+

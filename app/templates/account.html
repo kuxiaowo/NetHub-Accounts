@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}我的账号 · NetHub Accounts{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ACCOUNT</p><h1>我的账号</h1></div><a class="button secondary" href="{{ url_for('web.oauth_logout') }}">退出所有网站</a></div>
+<div class="two-column">
+  <section class="panel">
+    <h2>基本资料</h2>
+    <dl><dt>用户名</dt><dd>{{ current_user.username }}</dd><dt>统一标识</dt><dd class="mono">{{ current_user.sub }}</dd></dl>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="profile">
+      <label>显示名称<input name="display_name" maxlength="80" value="{{ current_user.display_name }}" required></label>
+      <button class="button" type="submit">保存资料</button>
+    </form>
+  </section>
+  <section class="panel">
+    <h2>{{ "设置新密码" if current_user.must_change_password else "修改密码" }}</h2>
+    {% if current_user.must_change_password %}<p class="warning-text">当前使用的是临时密码，修改后才能继续进入应用。</p>{% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="password">
+      <label>当前密码<input type="password" name="current_password" autocomplete="current-password" required></label>
+      <label>新密码<input type="password" name="new_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+      <label>确认新密码<input type="password" name="confirm_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+      <button class="button" type="submit">修改密码</button>
+    </form>
+  </section>
+</div>
+<section class="panel">
+  <h2>登录名</h2>
+  <div class="tag-list">{% for alias in aliases %}<span>{{ alias.alias }} <small>{{ alias.source }}</small></span>{% endfor %}</div>
+</section>
+<section class="panel">
+  <h2>已使用的网站</h2>
+  <table><thead><tr><th>网站</th><th>首次使用</th><th>最近授权</th></tr></thead><tbody>
+    {% for membership, client in memberships %}<tr><td>{{ client.client_name or client.client_id }}</td><td>{{ membership.first_authorized_at }}</td><td>{{ membership.last_authorized_at }}</td></tr>
+    {% else %}<tr><td colspan="3">尚未使用任何已接入网站。</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}
+

@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}审计日志 · NetHub Accounts{% endblock %}{% block content %}
+<div class="page-heading"><div><p class="eyebrow">AUDIT</p><h1>审计日志</h1></div><a class="button secondary" href="{{ url_for('web.admin') }}">返回</a></div>
+<section class="panel table-wrap"><table><thead><tr><th>时间</th><th>动作</th><th>操作者</th><th>目标</th><th>IP</th></tr></thead><tbody>{% for log in logs %}<tr><td>{{ log.created_at }}</td><td class="mono">{{ log.action }}</td><td>{{ log.actor_user_id or "-" }}</td><td>{{ log.target_user_id or "-" }}</td><td>{{ log.ip_address }}</td></tr>{% else %}<tr><td colspan="5">暂无记录。</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}
+

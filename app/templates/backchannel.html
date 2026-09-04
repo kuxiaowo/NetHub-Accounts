@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}退出通知 · NetHub Accounts{% endblock %}{% block content %}
+<div class="page-heading"><div><p class="eyebrow">BACK-CHANNEL</p><h1>退出通知</h1></div><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button">立即重试</button></form></div>
+<section class="panel table-wrap"><table><thead><tr><th>ID</th><th>客户端</th><th>原因</th><th>状态</th><th>尝试</th><th>错误</th></tr></thead><tbody>{% for job in jobs %}<tr><td>{{ job.id }}</td><td>{{ job.client_id }}</td><td>{{ job.reason }}</td><td>{{ job.status }}</td><td>{{ job.attempts }}</td><td>{{ job.last_error }}</td></tr>{% else %}<tr><td colspan="6">暂无退出通知。</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}
+

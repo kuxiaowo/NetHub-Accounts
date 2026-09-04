@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}NetHub Accounts{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">UNIFIED ACCOUNT</p>
+  <h1>一个账号，进入需要的网站。</h1>
+  <p>账号中心负责登录；TodoList、TechX、Wiki 和 CAS 继续独立保存业务资料与权限。</p>
+  {% if not current_user %}
+    <div class="actions">
+      <a class="button" href="{{ url_for('web.login') }}">登录</a>
+      {% if registration_enabled %}<a class="button secondary" href="{{ url_for('web.register') }}">创建账号</a>{% endif %}
+    </div>
+  {% endif %}
+</section>
+
+<section>
+  <div class="section-heading">
+    <h2>应用</h2>
+    {% if current_user %}<span>{{ memberships|length }} 个已使用</span>{% endif %}
+  </div>
+  <div class="app-grid">
+    {% for client in clients %}
+      <article class="app-card">
+        <div>
+          <h3>{{ client.client_name or client.client_id }}</h3>
+          <p>{{ "已关联" if client.client_id in memberships else "尚未使用" }}</p>
+        </div>
+        {% if client.launch_uri %}<a class="button small" href="{{ client.launch_uri }}">打开</a>{% endif %}
+      </article>
+    {% else %}
+      <div class="empty">应用尚未接入。账号中心可以先独立部署和测试。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+

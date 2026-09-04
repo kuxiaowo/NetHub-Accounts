@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}NetHub Accounts{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{ url_for('web.home') }}">NetHub <span>Accounts</span></a>
+    <nav>
+      {% if current_user %}
+        <a href="{{ url_for('web.account') }}">{{ current_user.display_name }}</a>
+        {% if current_user.is_system_admin %}<a href="{{ url_for('web.admin') }}">管理</a>{% endif %}
+        <form action="{{ url_for('web.logout') }}" method="post" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="link-button" type="submit">退出账号中心</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('web.login') }}">登录</a>
+        {% if registration_enabled %}<a href="{{ url_for('web.register') }}">注册</a>{% endif %}
+      {% endif %}
+    </nav>
+  </header>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>一个账号，按需使用 NetHub 服务。各网站权限仍由各网站管理。</footer>
+</body>
+</html>
+

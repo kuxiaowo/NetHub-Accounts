@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}注册 · NetHub Accounts{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <p class="eyebrow">CREATE ACCOUNT</p>
+  <h1>创建统一账号</h1>
+  {% if disabled %}
+    <div class="flash warning">注册暂未开放。已有用户仍可登录。</div>
+  {% else %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.values.get('next', '') }}">
+    <label>用户名<input name="username" minlength="2" maxlength="32" autocomplete="username" required autofocus></label>
+    <p class="field-help">可使用文字、数字、下划线、点和连字符；注册后不可自行修改。</p>
+    <label>显示名称<input name="display_name" maxlength="80" required></label>
+    <label>密码<input type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+    <label>确认密码<input type="password" name="confirm_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+    <label class="check"><input type="checkbox" name="accept_terms" value="yes" required> 我同意账号中心保存登录所需的用户名、显示名称和安全凭据。各网站另行处理自己的业务数据。</label>
+    <button class="button full" type="submit">创建账号</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+

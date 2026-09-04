@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}管理 · NetHub Accounts{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>账号管理</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('web.admin_audit') }}">审计日志</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">退出通知{% if failed_jobs %} · {{ failed_jobs }} 失败{% endif %}</a></div></div>
+<section class="panel">
+  <h2>创建账号</h2>
+  <form method="post" action="{{ url_for('web.admin_create_user') }}" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>用户名<input name="username" required></label><label>显示名称<input name="display_name" required></label><label>临时密码<input type="password" name="password" minlength="8" required></label>
+    <label class="check"><input type="checkbox" name="is_system_admin" value="yes"> 系统管理员</label><button class="button" type="submit">创建</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>用户</h2>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>用户名</th><th>显示名称</th><th>已使用网站</th><th>状态</th><th>临时密码</th><th>操作</th></tr></thead><tbody>
+  {% for user in users %}<tr>
+    <td>{{ user.id }}</td><td>{{ user.username }}{% if user.is_system_admin %} <span class="badge">系统管理员</span>{% endif %}</td><td>{{ user.display_name }}</td><td>{{ membership_map.get(user.id, [])|join("、") or "-" }}</td><td>{{ "启用" if user.is_active else "停用" }}{% if user.merged_into_user_id %} / 已合并{% endif %}</td>
+    <td><form method="post" action="{{ url_for('web.admin_reset_password', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="compact" type="password" name="temporary_password" minlength="8" required><button class="button tiny">重置</button></form></td>
+    <td><form method="post" action="{{ url_for('web.admin_toggle_user', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny secondary">{{ "停用" if user.is_active else "恢复" }}</button></form></td>
+  </tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="panel">
+  <h2>合并重复账号</h2><p class="muted">来源账号的登录名、旧凭据和网站关系会转移到目标账号，来源账号随后停用。</p>
+  <form method="post" action="{{ url_for('web.admin_merge_users') }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>来源用户 ID<input type="number" name="source_user_id" min="1" required></label><label>目标用户 ID<input type="number" name="target_user_id" min="1" required></label><button class="button danger" type="submit">确认合并</button></form>
+</section>
+<section class="panel"><h2>OIDC 客户端</h2><table><thead><tr><th>Client ID</th><th>名称</th><th>状态</th></tr></thead><tbody>{% for client in clients %}<tr><td class="mono">{{ client.client_id }}</td><td>{{ client.client_name }}</td><td>{{ "启用" if client.is_active else "停用" }}</td></tr>{% else %}<tr><td colspan="3">尚未注册客户端。</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

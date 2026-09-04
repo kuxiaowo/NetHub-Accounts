@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: ruff check app tests migrations scripts
+      - run: pytest --cov=app --cov-report=term-missing
+      - run: bash -n scripts/init_linux.sh
+      - name: Validate generated systemd unit
+        run: |
+          python scripts/render_systemd_unit.py \
+            --app-dir "$PWD" \
+            --python-bin "$(command -v python)" \
+            --output /tmp/nethub-accounts.service
+          systemd-analyze verify /tmp/nethub-accounts.service

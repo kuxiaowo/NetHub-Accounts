@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}登录 · NetHub Accounts{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <p class="eyebrow">SIGN IN</p>
+  <h1>登录 NetHub</h1>
+  <p>迁移用户可以继续使用原 TodoList 或 TechX 用户名与密码。</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.values.get('next', '') }}">
+    <label>用户名<input name="username" autocomplete="username" required autofocus></label>
+    <label>密码<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="button full" type="submit">登录</button>
+  </form>
+  {% if registration_enabled %}<p class="muted">还没有账号？<a href="{{ url_for('web.register', next=request.values.get('next', '')) }}">注册</a></p>{% endif %}
+</section>
+{% endblock %}
+
