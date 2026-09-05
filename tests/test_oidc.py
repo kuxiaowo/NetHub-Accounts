@@ -126,6 +126,58 @@ def exchange(
     )
 
 
+def test_silent_authorization_returns_login_required_without_central_session(app, client):
+    with app.app_context():
+        add_oauth_client()
+    _, challenge = pkce_pair()
+
+    response = client.get(
+        "/oauth/authorize",
+        query_string={
+            "response_type": "code",
+            "client_id": CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "scope": "openid profile",
+            "state": "silent-state",
+            "nonce": "silent-nonce",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "prompt": "none",
+        },
+    )
+
+    query = parse_qs(urlsplit(response.location).query)
+    assert response.status_code == 302
+    assert response.location.startswith(REDIRECT_URI)
+    assert query["error"] == ["login_required"]
+    assert query["state"] == ["silent-state"]
+
+
+def test_signup_hint_opens_registration_and_preserves_authorization(app, client):
+    with app.app_context():
+        add_oauth_client()
+    _, challenge = pkce_pair()
+
+    response = client.get(
+        "/oauth/authorize",
+        query_string={
+            "response_type": "code",
+            "client_id": CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "scope": "openid profile",
+            "state": "signup-state",
+            "nonce": "signup-nonce",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "screen_hint": "signup",
+        },
+    )
+
+    assert response.status_code == 302
+    assert urlsplit(response.location).path == "/register"
+    assert parse_qs(urlsplit(response.location).query)["next"][0].startswith("/oauth/authorize?")
+
+
 def test_discovery_and_jwks(client):
     discovery = client.get("/.well-known/openid-configuration").get_json()
     assert discovery["issuer"] == "https://accounts.test"

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from functools import wraps
 
+from authlib.oauth2 import OAuth2Error
+from authlib.oidc.core.errors import LoginRequiredError
 from flask import (
     Blueprint,
     abort,
@@ -508,7 +510,21 @@ def oauth_authorize():
             error="invalid_request", error_description="state and nonce are required"
         ), 400
     if g.current_user is None:
-        return redirect(url_for("web.login", next=safe_next(request.full_path.rstrip("?"))))
+        next_url = safe_next(request.full_path.rstrip("?"))
+        prompt_values = set(request.args.get("prompt", "").split())
+        if "none" in prompt_values:
+            oauth_request = authorization.create_oauth2_request(request)
+            try:
+                grant = authorization.get_authorization_grant(oauth_request)
+                redirect_uri = grant.validate_authorization_request()
+            except OAuth2Error as error:
+                error.state = oauth_request.payload.state
+                return authorization.handle_error_response(oauth_request, error)
+            error = LoginRequiredError(redirect_uri=redirect_uri)
+            error.state = oauth_request.payload.state
+            return authorization.handle_error_response(oauth_request, error)
+        endpoint = "web.register" if request.args.get("screen_hint") == "signup" else "web.login"
+        return redirect(url_for(endpoint, next=next_url))
     if g.current_user.must_change_password:
         flash("继续授权前必须修改临时密码。", "warning")
         return redirect(url_for("web.account", next=safe_next(request.full_path.rstrip("?"))))
