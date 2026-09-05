@@ -6,7 +6,7 @@
   <title>{% block title %}NetHub Accounts{% endblock %}</title>
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='avatar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='avatar.css', v='cropper2') }}">
   <script src="{{ url_for('static', filename='avatar-fallback.js') }}" defer></script>
   {% block head %}{% endblock %}
 </head>

@@ -166,3 +166,25 @@ def test_decoder_applies_exif_orientation(app):
         assert top[0] > top[2]
         assert bottom[2] > bottom[0]
         assert not result.getexif()
+
+
+def test_account_page_exposes_interactive_circle_cropper(app, client):
+    with app.app_context():
+        create_user()
+    login(client)
+
+    page = client.get("/account")
+    assert page.status_code == 200
+    assert b"data-avatar-crop-stage" in page.data
+    assert b"data-avatar-live-preview" in page.data
+    assert b"data-avatar-live-canvas" in page.data
+    assert b"data-avatar-save disabled" in page.data
+    assert "固定圆框".encode() in page.data
+
+    script = client.get("/static/avatar.js?v=cropper2")
+    assert script.status_code == 200
+    assert b"pointerdown" in script.data
+    assert b"pointermove" in script.data
+    assert b"wheel" in script.data
+    assert b"cropInset" in script.data
+    assert b"HTMLFormElement.prototype.submit.call(form)" in script.data
