@@ -43,6 +43,9 @@ def test_logout_all_queues_and_delivers_backchannel(app, client, monkeypatch):
 
     login(client)
     page = client.get("/oauth/logout")
+    page_html = page.get_data(as_text=True)
+    assert 'href="/account"' in page_html
+    assert ">取消</a>" in page_html
     response = client.post("/oauth/logout", data={"csrf_token": csrf_from(page)})
     assert response.status_code == 302
     with app.app_context():

@@ -1,4 +1,16 @@
 {% extends "base.html" %}{% block title %}退出所有网站 · NetHub Accounts{% endblock %}{% block content %}
-<section class="auth-card"><p class="eyebrow">SIGN OUT EVERYWHERE</p><h1>退出所有网站？</h1><p>账号中心会撤销中央会话，并通知已使用的网站删除本地会话。离线网站会进入重试队列。</p>{% if current_user %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button danger full">确认全部退出</button></form>{% else %}<a class="button full" href="{{ url_for('web.login') }}">登录</a>{% endif %}</section>
+<section class="auth-card">
+  <p class="eyebrow">SIGN OUT EVERYWHERE</p>
+  <h1>退出所有网站？</h1>
+  <p>账号中心会撤销中央会话，并通知已使用的网站删除本地会话。离线网站会进入重试队列。</p>
+  {% if current_user %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <a class="button secondary full" href="{{ url_for('web.account') }}">取消</a>
+      <button class="button danger full" type="submit">确认全部退出</button>
+    </form>
+  {% else %}
+    <a class="button full" href="{{ url_for('web.login') }}">登录</a>
+  {% endif %}
+</section>
 {% endblock %}
-
