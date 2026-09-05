@@ -1,0 +1,78 @@
+.app-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.app-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
+  align-items: stretch;
+  gap: 24px;
+  padding: 16px;
+}
+
+.app-card-copy {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 8px;
+}
+
+.app-card h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.app-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.app-preview {
+  display: block;
+  min-height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #eaf0f7;
+  color: var(--muted);
+}
+
+.app-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  object-fit: cover;
+  object-position: center top;
+  transition: transform 0.25s ease;
+}
+
+.app-preview:hover img {
+  transform: scale(1.02);
+}
+
+.app-preview span {
+  display: grid;
+  min-height: 150px;
+  height: 100%;
+  place-items: center;
+}
+
+@media (max-width: 720px) {
+  .app-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-card-copy {
+    padding: 4px;
+  }
+
+  .app-preview,
+  .app-preview img,
+  .app-preview span {
+    min-height: 120px;
+  }
+}

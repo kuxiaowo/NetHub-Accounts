@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}NetHub Accounts{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css') }}">{% endblock %}
 {% block content %}
 <section class="hero">
   <p class="eyebrow">UNIFIED ACCOUNT</p>
   <h1>一个账号，进入需要的网站。</h1>
-  <p>账号中心负责登录；TodoList、TechX、Wiki 和 CAS 继续独立保存业务资料与权限。</p>
+  <p>账号中心负责登录；TodoList、TechX心情晴雨表、Campus Wiki 和 Codex笔记中心继续独立保存业务资料与权限。</p>
   {% if not current_user %}
     <div class="actions">
       <a class="button" href="{{ url_for('web.login') }}">登录</a>
@@ -20,12 +21,28 @@
   </div>
   <div class="app-grid">
     {% for client in clients %}
+      {% set meta = home_client_meta.get(client.client_id, {}) %}
       <article class="app-card">
-        <div>
-          <h3>{{ client.client_name or client.client_id }}</h3>
-          <p>{{ "已关联" if client.client_id in memberships else "尚未使用" }}</p>
+        <div class="app-card-copy">
+          <div>
+            <h3>{{ meta.get("name", client.client_name or client.client_id) }}</h3>
+            <p>{{ "已关联" if client.client_id in memberships else "尚未使用" }}</p>
+          </div>
+          {% if client.launch_uri %}<a class="button small" href="{{ client.launch_uri }}">打开</a>{% endif %}
         </div>
-        {% if client.launch_uri %}<a class="button small" href="{{ client.launch_uri }}">打开</a>{% endif %}
+        {% if client.launch_uri %}
+          <a class="app-preview" href="{{ client.launch_uri }}" aria-label="打开{{ meta.get('name', client.client_name or client.client_id) }}">
+            {% if meta.get("preview") %}
+              <img src="{{ url_for('static', filename=meta['preview']) }}" alt="{{ meta.get('preview_alt', '') }}" loading="lazy">
+            {% else %}
+              <span>暂无网页预览</span>
+            {% endif %}
+          </a>
+        {% else %}
+          <div class="app-preview" aria-hidden="true">
+            {% if meta.get("preview") %}<img src="{{ url_for('static', filename=meta['preview']) }}" alt="" loading="lazy">{% else %}<span>暂无网页预览</span>{% endif %}
+          </div>
+        {% endif %}
       </article>
     {% else %}
       <div class="empty">应用尚未接入。账号中心可以先独立部署和测试。</div>
@@ -33,4 +50,3 @@
   </div>
 </section>
 {% endblock %}
-

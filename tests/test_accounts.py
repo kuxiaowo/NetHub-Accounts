@@ -85,6 +85,29 @@ def test_health(client):
     assert client.get("/health").get_json() == {"status": "ok"}
 
 
+def test_home_uses_named_single_column_app_previews(app, client):
+    with app.app_context():
+        db.session.add_all(
+            [
+                oauth_client("cas"),
+                oauth_client("campus-wiki"),
+                oauth_client("techx"),
+                oauth_client("todo"),
+            ]
+        )
+        db.session.commit()
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "TechX心情晴雨表" in response.text
+    assert "Codex笔记中心" in response.text
+    assert response.text.count('class="app-preview"') == 4
+    assert response.text.find(">TodoList<") < response.text.find(">TechX")
+    assert response.text.find(">TechX") < response.text.find(">Campus Wiki<")
+    assert response.text.find(">Campus Wiki<") < response.text.find(">Codex")
+
+
 def test_registration_is_case_insensitive(app, client):
     assert register(client, "Alice").status_code == 302
     other = app.test_client()
@@ -261,6 +284,91 @@ def test_admin_can_create_disable_and_restore_account(app, client):
     with app.app_context():
         assert db.session.get(User, managed_id).is_active is True
     assert login(app.test_client(), "managed-user", "temporary-123").status_code == 302
+
+
+def test_admin_can_permanently_delete_inactive_account(app, client):
+    with app.app_context():
+        create_user("admin", admin=True)
+        target = create_user("retired-user")
+        target.is_active = False
+        db.session.add(AppMembership(user_id=target.id, client_id="todo"))
+        db.session.add(
+            AuditLog(
+                actor_user_id=target.id,
+                target_user_id=target.id,
+                action="test.user_activity",
+                ip_address="127.0.0.1",
+            )
+        )
+        db.session.commit()
+        target_id = target.id
+
+    assert login(client, "admin").status_code == 302
+    page = client.get("/admin")
+    assert f'/admin/users/{target_id}/delete' in page.text
+    response = client.post(
+        f"/admin/users/{target_id}/delete",
+        data={"csrf_token": csrf_from(page)},
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(User, target_id) is None
+        assert not db.session.scalars(
+            select(LoginAlias).where(LoginAlias.user_id == target_id)
+        ).all()
+        assert not db.session.scalars(
+            select(AppMembership).where(AppMembership.user_id == target_id)
+        ).all()
+        retained_log = db.session.scalar(
+            select(AuditLog).where(AuditLog.action == "test.user_activity")
+        )
+        assert retained_log.actor_user_id is None
+        assert retained_log.target_user_id is None
+        deleted_log = db.session.scalar(
+            select(AuditLog).where(AuditLog.action == "admin.user_deleted")
+        )
+        assert deleted_log.details["targetUsername"] == "retired-user"
+
+
+def test_admin_delete_requires_an_inactive_account_without_pending_logout(app, client):
+    with app.app_context():
+        create_user("admin", admin=True)
+        active = create_user("active-user")
+        inactive = create_user("pending-user")
+        inactive.is_active = False
+        db.session.add(
+            BackchannelJob(
+                user_id=inactive.id,
+                client_id="todo",
+                reason="account_disabled",
+            )
+        )
+        db.session.commit()
+        active_id = active.id
+        inactive_id = inactive.id
+
+    assert login(client, "admin").status_code == 302
+    page = client.get("/admin")
+    csrf_token = csrf_from(page)
+    assert (
+        client.post(
+            f"/admin/users/{active_id}/delete",
+            data={"csrf_token": csrf_token},
+        ).status_code
+        == 409
+    )
+    page = client.get("/admin")
+    assert (
+        client.post(
+            f"/admin/users/{inactive_id}/delete",
+            data={"csrf_token": csrf_from(page)},
+        ).status_code
+        == 409
+    )
+    with app.app_context():
+        assert db.session.get(User, active_id) is not None
+        assert db.session.get(User, inactive_id) is not None
 
 
 def test_csrf_is_required(client):

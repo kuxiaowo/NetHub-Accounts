@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}管理 · NetHub Accounts{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">{% endblock %}
 {% block content %}
 <div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>账号管理</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('web.admin_audit') }}">审计日志</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">退出通知{% if failed_jobs %} · {{ failed_jobs }} 失败{% endif %}</a></div></div>
 <section class="panel">
@@ -12,11 +13,11 @@
 </section>
 <section class="panel">
   <h2>用户</h2>
-  <div class="table-wrap"><table><thead><tr><th>ID</th><th>用户名</th><th>显示名称</th><th>已使用网站</th><th>状态</th><th>临时密码</th><th>操作</th></tr></thead><tbody>
+  <div class="table-wrap"><table class="admin-users-table"><thead><tr><th>ID</th><th>用户名</th><th>显示名称</th><th>已使用网站</th><th>状态</th><th>临时密码</th><th>操作</th></tr></thead><tbody>
   {% for user in users %}<tr>
-    <td>{{ user.id }}</td><td>{{ user.username }}{% if user.is_system_admin %} <span class="badge">系统管理员</span>{% endif %}</td><td>{{ user.display_name }}</td><td>{{ membership_map.get(user.id, [])|join("、") or "-" }}</td><td>{{ "启用" if user.is_active else "停用" }}{% if user.merged_into_user_id %} / 已合并{% endif %}</td>
-    <td><form method="post" action="{{ url_for('web.admin_reset_password', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="compact" type="password" name="temporary_password" minlength="8" required><button class="button tiny">重置</button></form></td>
-    <td><form method="post" action="{{ url_for('web.admin_toggle_user', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny secondary">{{ "停用" if user.is_active else "恢复" }}</button></form></td>
+    <td>{{ user.id }}</td><td>{{ user.username }}{% if user.is_system_admin %} <span class="badge">系统管理员</span>{% endif %}</td><td>{{ user.display_name }}</td><td class="user-sites">{{ membership_map.get(user.id, [])|join("、") or "-" }}</td><td class="user-status">{{ "启用" if user.is_active else "停用" }}{% if user.merged_into_user_id %} / 已合并{% endif %}</td>
+    <td><form method="post" action="{{ url_for('web.admin_reset_password', user_id=user.id) }}" class="inline-form password-reset-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="compact" type="password" name="temporary_password" minlength="8" required><button class="button tiny" type="submit">重置</button></form></td>
+    <td><div class="user-actions"><form method="post" action="{{ url_for('web.admin_toggle_user', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny secondary" type="submit">{{ "停用" if user.is_active else "恢复" }}</button></form>{% if not user.is_active and user.id != current_user.id %}<form method="post" action="{{ url_for('web.admin_delete_user', user_id=user.id) }}" class="inline-form delete-user-form" data-confirm="永久删除账号“{{ user.username }}”？此操作无法撤销。"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny danger" type="submit">删除</button></form>{% endif %}</div></td>
   </tr>{% endfor %}
   </tbody></table></div>
 </section>
@@ -26,3 +27,4 @@
 </section>
 <section class="panel"><h2>OIDC 客户端</h2><table><thead><tr><th>Client ID</th><th>名称</th><th>状态</th></tr></thead><tbody>{% for client in clients %}<tr><td class="mono">{{ client.client_id }}</td><td>{{ client.client_name }}</td><td>{{ "启用" if client.is_active else "停用" }}</td></tr>{% else %}<tr><td colspan="3">尚未注册客户端。</td></tr>{% endfor %}</tbody></table></section>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='admin.js') }}" defer></script>{% endblock %}
