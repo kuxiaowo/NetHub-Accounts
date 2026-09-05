@@ -37,6 +37,7 @@ def app(tmp_path, monkeypatch):
             "BACKCHANNEL_WORKER_ENABLED": False,
             "SESSION_COOKIE_SECURE": False,
             "REGISTRATION_ENABLED": True,
+            "AVATAR_UPLOAD_DIR": tmp_path / "avatars",
         }
     )
     with application.app_context():

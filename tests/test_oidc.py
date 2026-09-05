@@ -182,6 +182,7 @@ def test_discovery_and_jwks(client):
     discovery = client.get("/.well-known/openid-configuration").get_json()
     assert discovery["issuer"] == "https://accounts.test"
     assert discovery["code_challenge_methods_supported"] == ["S256"]
+    assert "picture" in discovery["claims_supported"]
     keys = client.get("/.well-known/jwks.json").get_json()["keys"]
     assert keys[0]["alg"] == "RS256"
     assert "d" not in keys[0]
@@ -211,6 +212,7 @@ def test_authorization_code_pkce_and_userinfo(app, client):
         assert CLIENT_ID in claims["aud"]
         assert claims["sub"]
         assert claims["preferred_username"] == "alice"
+        assert claims["picture"] == f"https://accounts.test/avatars/{claims['sub']}"
         assert claims["nonce"] == "nonce-123"
         assert claims["sid"]
         assert db.session.scalar(
@@ -223,6 +225,7 @@ def test_authorization_code_pkce_and_userinfo(app, client):
     )
     assert userinfo.status_code == 200
     assert userinfo.get_json()["preferred_username"] == "alice"
+    assert userinfo.get_json()["picture"] == f"https://accounts.test/avatars/{userinfo.get_json()['sub']}"
     assert exchange(client, query["code"][0], verifier).status_code == 400
 
 

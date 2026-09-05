@@ -51,6 +51,11 @@ class Settings:
     token_expires_seconds: int
     login_limit_per_15_minutes: int
     register_limit_per_day: int
+    avatar_upload_dir: Path
+    avatar_upload_max_bytes: int
+    avatar_size_px: int
+    avatar_max_stored_bytes: int
+    avatar_webp_quality: int
 
     @classmethod
     def from_env(cls, *, testing: bool = False) -> Settings:
@@ -58,6 +63,9 @@ class Settings:
         key_path = Path(os.getenv("OIDC_SIGNING_KEY_PATH", "data/oidc-rs256.pem"))
         if not key_path.is_absolute():
             key_path = PROJECT_ROOT / key_path
+        avatar_dir = Path(os.getenv("AVATAR_UPLOAD_DIR", "data/uploads/avatars"))
+        if not avatar_dir.is_absolute():
+            avatar_dir = PROJECT_ROOT / avatar_dir
         settings = cls(
             host=os.getenv("ACCOUNTS_HOST", "127.0.0.1").strip(),
             port=_int("ACCOUNTS_PORT", 3400, 1),
@@ -73,6 +81,11 @@ class Settings:
             token_expires_seconds=_int("OAUTH_TOKEN_EXPIRES_SECONDS", 300, 60),
             login_limit_per_15_minutes=_int("LOGIN_LIMIT_PER_15_MINUTES", 20, 1),
             register_limit_per_day=_int("REGISTER_LIMIT_PER_DAY", 10, 1),
+            avatar_upload_dir=avatar_dir,
+            avatar_upload_max_bytes=_int("AVATAR_UPLOAD_MAX_MB", 5, 1) * 1024 * 1024,
+            avatar_size_px=_int("AVATAR_SIZE_PX", 512, 64),
+            avatar_max_stored_bytes=_int("AVATAR_MAX_STORED_KB", 256, 32) * 1024,
+            avatar_webp_quality=_int("AVATAR_WEBP_QUALITY", 85, 40),
         )
         if testing:
             return settings

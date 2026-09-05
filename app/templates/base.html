@@ -4,14 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}NetHub Accounts{% endblock %}</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='avatar.css') }}">
+  <script src="{{ url_for('static', filename='avatar-fallback.js') }}" defer></script>
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="{{ url_for('web.home') }}">NetHub <span>Accounts</span></a>
     <nav>
       {% if current_user %}
-        <a href="{{ url_for('web.account') }}">{{ current_user.display_name }}</a>
+        <a class="nav-account" href="{{ url_for('web.account') }}">
+          <span class="avatar avatar-small" data-avatar-fallback="{{ current_user.display_name[:1]|upper }}">
+            <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="">
+          </span>
+          <span>{{ current_user.display_name }}</span>
+        </a>
         {% if current_user.is_system_admin %}<a href="{{ url_for('web.admin') }}">管理</a>{% endif %}
         <form action="{{ url_for('web.logout') }}" method="post" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -32,6 +41,6 @@
     {% block content %}{% endblock %}
   </main>
   <footer>一个账号，按需使用 NetHub 服务。各网站权限仍由各网站管理。</footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>
-

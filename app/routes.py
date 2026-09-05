@@ -19,6 +19,13 @@ from flask import (
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from .avatars import (
+    AvatarError,
+    avatar_response,
+    delete_avatar_file,
+    normalize_avatar_color,
+    store_avatar,
+)
 from .backchannel import deliver_pending_jobs, queue_logout
 from .extensions import authorization, db
 from .models import (
@@ -300,6 +307,78 @@ def account():
     return render_template("account.html", memberships=memberships, aliases=aliases)
 
 
+@web.post("/account/avatar")
+@login_required
+def account_avatar_upload():
+    require_csrf()
+    upload = request.files.get("avatar")
+    if upload is None:
+        flash("请选择头像文件。", "error")
+        return redirect(url_for("web.account"))
+    raw = upload.stream.read(current_app.config["AVATAR_UPLOAD_MAX_BYTES"] + 1)
+    old_filename = g.current_user.avatar_file
+    new_filename = None
+    try:
+        new_filename = store_avatar(g.current_user, raw)
+        g.current_user.avatar_file = new_filename
+        g.current_user.avatar_updated_at = utc_now()
+        audit("account.avatar_updated", target=g.current_user)
+        db.session.commit()
+    except AvatarError as exc:
+        db.session.rollback()
+        if new_filename:
+            delete_avatar_file(g.current_user, new_filename)
+        flash(str(exc), "error")
+        return redirect(url_for("web.account"))
+    except Exception:
+        db.session.rollback()
+        if new_filename:
+            delete_avatar_file(g.current_user, new_filename)
+        raise
+    delete_avatar_file(g.current_user, old_filename)
+    flash("头像已更新。", "success")
+    return redirect(url_for("web.account"))
+
+
+@web.post("/account/avatar/delete")
+@login_required
+def account_avatar_delete():
+    require_csrf()
+    old_filename = g.current_user.avatar_file
+    g.current_user.avatar_file = None
+    g.current_user.avatar_updated_at = utc_now()
+    audit("account.avatar_deleted", target=g.current_user)
+    db.session.commit()
+    delete_avatar_file(g.current_user, old_filename)
+    flash("头像已移除。", "success")
+    return redirect(url_for("web.account"))
+
+
+@web.post("/account/avatar/color")
+@login_required
+def account_avatar_color():
+    require_csrf()
+    raw_color = request.form.get("avatar_color", "").strip().lower()
+    color = normalize_avatar_color(raw_color)
+    if color != raw_color:
+        flash("请选择有效的头像背景色。", "error")
+        return redirect(url_for("web.account"))
+    g.current_user.avatar_color = color
+    g.current_user.avatar_updated_at = utc_now()
+    audit("account.avatar_color_updated", target=g.current_user)
+    db.session.commit()
+    flash("头像背景色已更新。", "success")
+    return redirect(url_for("web.account"))
+
+
+@web.get("/avatars/<uuid:subject>")
+def public_avatar(subject):
+    user = db.session.scalar(select(User).where(User.sub == str(subject)))
+    if user is None or user.merged_into_user_id is not None:
+        abort(404)
+    return avatar_response(user)
+
+
 @web.get("/admin")
 @admin_required
 def admin():
@@ -494,7 +573,15 @@ def discovery():
         token_endpoint_auth_methods_supported=["client_secret_basic"],
         code_challenge_methods_supported=["S256"],
         scopes_supported=["openid", "profile"],
-        claims_supported=["sub", "preferred_username", "name", "sid", "auth_time", "nonce"],
+        claims_supported=[
+            "sub",
+            "preferred_username",
+            "name",
+            "picture",
+            "sid",
+            "auth_time",
+            "nonce",
+        ],
     )
 
 
