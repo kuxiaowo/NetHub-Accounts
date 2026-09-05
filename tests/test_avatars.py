@@ -181,10 +181,14 @@ def test_account_page_exposes_interactive_circle_cropper(app, client):
     assert b"data-avatar-save disabled" in page.data
     assert "固定圆框".encode() in page.data
 
-    script = client.get("/static/avatar.js?v=cropper2")
+    assert b"avatar.js?v=cropper3" in page.data
+
+    script = client.get("/static/avatar.js?v=cropper3")
     assert script.status_code == 200
     assert b"pointerdown" in script.data
     assert b"pointermove" in script.data
     assert b"wheel" in script.data
     assert b"cropInset" in script.data
+    assert b"reader.readAsDataURL(file)" in script.data
+    assert b"URL.createObjectURL" not in script.data
     assert b"HTMLFormElement.prototype.submit.call(form)" in script.data
