@@ -121,7 +121,14 @@ class AuthorizationCode(OAuth2AuthorizationCodeMixin, db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     sid: Mapped[str] = mapped_column(String(36), nullable=False)
+    issued_at: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=lambda: int(time.time())
+    )
     user: Mapped[User] = relationship()
+
+    def is_expired(self) -> bool:
+        """Expire the code from issuance, not from the user's original login."""
+        return self.issued_at + 300 < time.time()
 
 
 class OAuth2Token(OAuth2TokenMixin, db.Model):

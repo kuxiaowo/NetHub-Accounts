@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+import time
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -13,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.models import AppMembership, OAuth2Client
+from app.models import AppMembership, AuthorizationCode, OAuth2Client, WebSession
 from tests.conftest import client_secret_hash, create_user, csrf_from
 from tests.test_accounts import login
 
@@ -171,6 +172,45 @@ def test_authorization_code_pkce_and_userinfo(app, client):
     assert userinfo.status_code == 200
     assert userinfo.get_json()["preferred_username"] == "alice"
     assert exchange(client, query["code"][0], verifier).status_code == 400
+
+
+def test_new_code_remains_valid_when_central_login_is_older_than_five_minutes(app, client):
+    with app.app_context():
+        create_user()
+        add_oauth_client()
+    login(client)
+    original_auth_time = int(time.time()) - 3600
+    with app.app_context():
+        session = db.session.scalar(select(WebSession))
+        session.auth_time = original_auth_time
+        db.session.commit()
+
+    verifier, challenge = pkce_pair()
+    response = authorize(client, challenge)
+    code = parse_qs(urlsplit(response.location).query)["code"][0]
+    token_response = exchange(client, code, verifier)
+
+    assert token_response.status_code == 200, token_response.get_data(as_text=True)
+    with app.app_context():
+        key = import_key(app.config["OIDC_SIGNING_KEY_PATH"].read_bytes(), "RSA")
+        decoded = jwt.decode(token_response.get_json()["id_token"], key)
+        assert decoded.claims["auth_time"] == original_auth_time
+
+
+def test_authorization_code_expires_from_its_own_issuance_time(app, client):
+    with app.app_context():
+        create_user()
+        add_oauth_client()
+    login(client)
+    verifier, challenge = pkce_pair()
+    response = authorize(client, challenge)
+    code = parse_qs(urlsplit(response.location).query)["code"][0]
+    with app.app_context():
+        authorization_code = db.session.scalar(select(AuthorizationCode))
+        authorization_code.issued_at = int(time.time()) - 301
+        db.session.commit()
+
+    assert exchange(client, code, verifier).status_code == 400
 
 
 def test_pkce_is_required_for_confidential_client(app, client):

@@ -46,6 +46,7 @@ class AuthorizationCodeGrantImpl(AuthorizationCodeGrant):
             user_id=request.user.id,
             nonce=request.payload.data.get("nonce"),
             auth_time=getattr(request.user, "_auth_time", int(time.time())),
+            issued_at=int(time.time()),
             code_challenge=request.payload.data.get("code_challenge"),
             code_challenge_method=request.payload.data.get("code_challenge_method"),
             sid=getattr(request.user, "_sid", ""),
@@ -58,6 +59,7 @@ class AuthorizationCodeGrantImpl(AuthorizationCodeGrant):
             select(AuthorizationCode).where(
                 AuthorizationCode.code == token_digest(code),
                 AuthorizationCode.client_id == client.client_id,
+                AuthorizationCode.issued_at >= int(time.time()) - 300,
             )
         )
 

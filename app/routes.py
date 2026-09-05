@@ -417,6 +417,10 @@ def admin_merge_users():
         select(LegacyCredential).where(LegacyCredential.user_id == source.id)
     ):
         credential.user_id = target.id
+    # Queue logout while the source still owns its memberships. The lookup in
+    # queue_logout triggers an autoflush, so doing this after the transfer would
+    # lose the clients whose source-account sessions must be revoked.
+    queue_logout(source, "account_merged")
     for membership in db.session.scalars(
         select(AppMembership).where(AppMembership.user_id == source.id)
     ):
@@ -438,7 +442,6 @@ def admin_merge_users():
             membership.user_id = target.id
     revoke_user_sessions(source.id)
     revoke_user_oauth_tokens(source.id)
-    queue_logout(source, "account_merged")
     target.is_system_admin = target.is_system_admin or source.is_system_admin
     source.is_system_admin = False
     source.is_active = False

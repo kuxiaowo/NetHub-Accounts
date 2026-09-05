@@ -283,7 +283,7 @@ def cleanup_expired() -> None:
         delete(RateLimitEvent).where(RateLimitEvent.created_at < now - timedelta(days=2))
     )
     db.session.execute(
-        delete(AuthorizationCode).where(AuthorizationCode.auth_time < now_epoch - 300)
+        delete(AuthorizationCode).where(AuthorizationCode.issued_at < now_epoch - 300)
     )
     db.session.execute(delete(OAuth2Token).where(OAuth2Token.issued_at < now_epoch - 86400))
     db.session.commit()

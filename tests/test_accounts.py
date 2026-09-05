@@ -5,9 +5,18 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import AppMembership, AuditLog, LoginAlias, User, WebSession, utc_now
+from app.models import (
+    AppMembership,
+    AuditLog,
+    BackchannelJob,
+    LoginAlias,
+    OAuth2Client,
+    User,
+    WebSession,
+    utc_now,
+)
 from app.security import PASSWORD_HASH
-from tests.conftest import create_user, csrf_from
+from tests.conftest import client_secret_hash, create_user, csrf_from
 
 
 def register(client, username="Alice", password="password-123"):
@@ -36,6 +45,29 @@ def login(client, username="alice", password="password-123", next_url="/"):
             "next": next_url,
         },
     )
+
+
+def oauth_client(client_id: str) -> OAuth2Client:
+    item = OAuth2Client(
+        client_id=client_id,
+        client_secret=client_secret_hash(f"{client_id}-client-secret"),
+        client_id_issued_at=1,
+        client_secret_expires_at=0,
+        launch_uri=f"https://{client_id}.test/",
+        backchannel_logout_uri=f"https://{client_id}.test/auth/backchannel-logout",
+        is_active=True,
+    )
+    item.set_client_metadata(
+        {
+            "client_name": client_id,
+            "redirect_uris": [f"https://{client_id}.test/auth/callback"],
+            "scope": "openid profile",
+            "grant_types": ["authorization_code"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": "client_secret_basic",
+        }
+    )
+    return item
 
 
 def test_registration_normalizes_username_and_uses_argon2(app, client):
@@ -131,6 +163,8 @@ def test_admin_can_merge_accounts_and_preserve_memberships(app, client):
         now = utc_now()
         db.session.add_all(
             [
+                oauth_client("todo"),
+                oauth_client("techx"),
                 AppMembership(
                     user_id=source.id,
                     client_id="todo",
@@ -172,6 +206,11 @@ def test_admin_can_merge_accounts_and_preserve_memberships(app, client):
         todo = next(item for item in memberships if item.client_id == "todo")
         assert todo.first_authorized_at == now - timedelta(days=10)
         assert todo.last_authorized_at == now
+        jobs = db.session.scalars(
+            select(BackchannelJob).where(BackchannelJob.user_id == source_id)
+        ).all()
+        assert {job.client_id for job in jobs} == {"todo", "techx"}
+        assert all(job.reason == "account_merged" for job in jobs)
         assert db.session.scalar(select(AuditLog).where(AuditLog.action == "admin.users_merged"))
 
     merged_browser = app.test_client()
