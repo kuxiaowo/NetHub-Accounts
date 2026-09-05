@@ -23,7 +23,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory={quote_systemd(str(app_dir))}
+WorkingDirectory={app_dir}
 ExecStart={command}
 Restart=always
 RestartSec=3
