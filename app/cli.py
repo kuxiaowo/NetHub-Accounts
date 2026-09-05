@@ -13,6 +13,7 @@ from alembic.config import Config
 from sqlalchemy import select
 
 from . import create_app
+from .avatar_migration import apply_avatar_plan, build_avatar_plan
 from .backchannel import deliver_pending_jobs
 from .config import PROJECT_ROOT
 from .extensions import db
@@ -159,6 +160,46 @@ def migration_apply_command(
     with app.app_context():
         result = apply_plan(plan_path, items, mapping_output)
     click.echo(f"applied {len(result['mappings'])} source mappings")
+
+
+@cli.command("avatar-migration-dry-run")
+@click.option(
+    "--mapping",
+    "mapping_path",
+    type=click.Path(path_type=Path, exists=True),
+    required=True,
+)
+@click.option("--todo-db", type=click.Path(path_type=Path, exists=True))
+@click.option("--todo-avatar-dir", type=click.Path(path_type=Path, exists=True, file_okay=False))
+@click.option("--wiki-manifest", type=click.Path(path_type=Path, exists=True))
+@click.option("--output", type=click.Path(path_type=Path), required=True)
+def avatar_migration_dry_run(
+    mapping_path: Path,
+    todo_db: Path | None,
+    todo_avatar_dir: Path | None,
+    wiki_manifest: Path | None,
+    output: Path,
+) -> None:
+    app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
+    with app.app_context():
+        plan = build_avatar_plan(
+            mapping_path=mapping_path,
+            todo_db=todo_db,
+            todo_avatar_dir=todo_avatar_dir,
+            wiki_manifest=wiki_manifest,
+        )
+    write_plan(plan, output)
+    click.echo(json.dumps(plan["summary"], ensure_ascii=False))
+    click.echo(f"avatar plan written: {output}")
+
+
+@cli.command("avatar-migration-apply")
+@click.option("--plan", "plan_path", type=click.Path(path_type=Path, exists=True), required=True)
+def avatar_migration_apply(plan_path: Path) -> None:
+    app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
+    with app.app_context():
+        result = apply_avatar_plan(plan_path)
+    click.echo(json.dumps(result, ensure_ascii=False))
 
 
 @cli.command("retry-backchannel")

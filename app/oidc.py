@@ -13,6 +13,7 @@ from flask import current_app
 from joserfc.jwk import import_key
 from sqlalchemy import select
 
+from .avatars import avatar_url
 from .extensions import authorization, db
 from .models import AppMembership, AuthorizationCode, OAuth2Client, OAuth2Token, User, utc_now
 from .security import token_digest
@@ -101,7 +102,12 @@ class OpenIDCodeImpl(OpenIDCode):
         )
 
     def generate_user_info(self, user, scope):
-        return UserInfo(sub=user.sub, preferred_username=user.username, name=user.display_name)
+        return UserInfo(
+            sub=user.sub,
+            preferred_username=user.username,
+            name=user.display_name,
+            picture=avatar_url(user),
+        )
 
 
 class RevocationEndpointImpl(RevocationEndpoint):
@@ -196,6 +202,7 @@ def userinfo_payload() -> dict:
         "sub": token.user.sub,
         "preferred_username": token.user.username,
         "name": token.user.display_name,
+        "picture": avatar_url(token.user),
     }
 
 

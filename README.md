@@ -102,6 +102,36 @@ python -m app.cli migration-apply \
 应用过程是事务化和可重复执行的。旧哈希只保留到首次成功登录；随后转成 Argon2 并删除该用户
 全部旧凭据。TechX 的实名、年级、项目和隐私同意不会导入账号中心。
 
+### 迁移旧头像
+
+先在 `NetHub-Campus-Wiki` 目录用只读导出脚本生成头像清单：
+
+```bash
+python scripts/export_avatar_migration.py \
+  --database /backup/campus_wiki.db \
+  --output /backup/wiki-avatars.json
+```
+
+然后回到 `NetHub-Accounts`，同时读取 TodoList 备份和 Wiki 清单：
+
+```bash
+python -m app.cli avatar-migration-dry-run \
+  --mapping migration-output/app-user-mapping.json \
+  --todo-db /backup/todo-list.db \
+  --todo-avatar-dir /backup/todo-avatars \
+  --wiki-manifest /backup/wiki-avatars.json \
+  --output migration-output/avatar-plan.json
+```
+
+检查 `errors`（必须为空）和 `conflicts` 后执行：
+
+```bash
+python -m app.cli avatar-migration-apply --plan migration-output/avatar-plan.json
+```
+
+冲突固定选择 Wiki 图片，其次 TodoList 图片和文字头像颜色。所有图片都由 Accounts
+重新解码压缩；重复执行不会覆盖用户已经在 Accounts 主动设置或删除的头像。
+
 ## 备份与恢复
 
 升级或切换前停止账号服务，然后复制以下文件：
@@ -109,6 +139,7 @@ python -m app.cli migration-apply \
 - `data/accounts.sqlite3` 及存在时的 `-wal`、`-shm`；
 - `data/oidc-rs256.pem`；
 - `.env`；
+- `data/uploads/avatars/`；
 - 四个客户端的密钥保管记录。
 
 恢复时保持数据库、RSA 私钥和 Issuer 成套一致，权限设为 `600`，执行

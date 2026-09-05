@@ -38,6 +38,11 @@ class User(TimestampMixin, db.Model):
     username: Mapped[str] = mapped_column(String(64), nullable=False)
     username_key: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    avatar_file: Mapped[str | None] = mapped_column(String(160))
+    avatar_updated_at: Mapped[datetime | None]
+    avatar_color: Mapped[str] = mapped_column(
+        String(7), nullable=False, default="#6366f1", server_default="#6366f1"
+    )
     password_hash: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_system_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
