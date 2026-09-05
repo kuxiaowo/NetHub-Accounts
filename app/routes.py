@@ -58,6 +58,33 @@ from .security import (
 
 web = Blueprint("web", __name__)
 
+HOME_CLIENT_META = {
+    "todo": {
+        "name": "TodoList",
+        "preview": "previews/todolist.webp",
+        "preview_alt": "TodoList 网页预览",
+        "order": 0,
+    },
+    "techx": {
+        "name": "TechX心情晴雨表",
+        "preview": "previews/techx-mood.webp",
+        "preview_alt": "TechX心情晴雨表网页预览",
+        "order": 1,
+    },
+    "campus-wiki": {
+        "name": "Campus Wiki",
+        "preview": "previews/campus-wiki.webp",
+        "preview_alt": "Campus Wiki 网页预览",
+        "order": 2,
+    },
+    "cas": {
+        "name": "Codex笔记中心",
+        "preview": "previews/codex-notes.svg",
+        "preview_alt": "Codex笔记中心网页预览",
+        "order": 3,
+    },
+}
+
 
 def login_required(view):
     @wraps(view)
@@ -129,6 +156,12 @@ def home():
     clients = db.session.scalars(
         select(OAuth2Client).where(OAuth2Client.is_active.is_(True)).order_by(OAuth2Client.id)
     ).all()
+    clients.sort(
+        key=lambda client: (
+            HOME_CLIENT_META.get(client.client_id, {}).get("order", len(HOME_CLIENT_META)),
+            client.client_id,
+        )
+    )
     memberships = set()
     if g.current_user:
         memberships = set(
@@ -136,7 +169,12 @@ def home():
                 select(AppMembership.client_id).where(AppMembership.user_id == g.current_user.id)
             ).all()
         )
-    return render_template("home.html", clients=clients, memberships=memberships)
+    return render_template(
+        "home.html",
+        clients=clients,
+        memberships=memberships,
+        home_client_meta=HOME_CLIENT_META,
+    )
 
 
 @web.get("/health")
@@ -478,6 +516,50 @@ def admin_reset_password(user_id: int):
     audit("admin.password_reset", target=target)
     db.session.commit()
     flash("临时密码已设置，用户下次登录必须修改。", "success")
+    return redirect(url_for("web.admin"))
+
+
+@web.post("/admin/users/<int:user_id>/delete")
+@admin_required
+def admin_delete_user(user_id: int):
+    require_csrf()
+    record_admin_action("admin.delete_user_attempt")
+    target = db.get_or_404(User, user_id)
+    if target.id == g.current_user.id:
+        abort(409, "不能删除自己的账号")
+    if target.is_active:
+        abort(409, "请先停用账号，确认各网站会话退出后再删除")
+    if db.session.scalar(select(User.id).where(User.merged_into_user_id == target.id)):
+        abort(409, "该账号仍是其他已合并账号的目标，不能删除")
+    unfinished_logout_count = db.session.scalar(
+        select(func.count(BackchannelJob.id)).where(
+            BackchannelJob.user_id == target.id,
+            BackchannelJob.status != "delivered",
+        )
+    )
+    if int(unfinished_logout_count or 0):
+        abort(409, "该账号仍有未完成的退出通知，请处理后再删除")
+
+    target_sub = target.sub
+    target_username = target.username
+    avatar_filename = target.avatar_file
+    for log in db.session.scalars(
+        select(AuditLog).where(
+            (AuditLog.actor_user_id == target.id) | (AuditLog.target_user_id == target.id)
+        )
+    ):
+        if log.actor_user_id == target.id:
+            log.actor_user_id = None
+        if log.target_user_id == target.id:
+            log.target_user_id = None
+    audit(
+        "admin.user_deleted",
+        details={"targetSub": target_sub, "targetUsername": target_username},
+    )
+    db.session.delete(target)
+    db.session.commit()
+    delete_avatar_file(target, avatar_filename)
+    flash(f"账号 {target_username} 已永久删除。", "success")
     return redirect(url_for("web.admin"))
 
 
