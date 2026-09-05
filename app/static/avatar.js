@@ -24,7 +24,7 @@
   const cropInset = canvas.width * 0.08;
   const cropSize = canvas.width - cropInset * 2;
   let image = null;
-  let objectUrl = null;
+  let loadVersion = 0;
   let offsetX = 0;
   let offsetY = 0;
   let dragging = false;
@@ -74,6 +74,7 @@
 
   function loadFile(file) {
     if (!file) return;
+    const version = ++loadVersion;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       input.value = '';
       setStatus('请选择 JPEG、PNG 或 WebP 图片。', true);
@@ -84,10 +85,10 @@
       setStatus('源图片不能超过 5 MiB。', true);
       return;
     }
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    objectUrl = URL.createObjectURL(file);
+    const reader = new FileReader();
     const candidate = new Image();
     candidate.onload = () => {
+      if (version !== loadVersion) return;
       image = candidate;
       offsetX = 0;
       offsetY = 0;
@@ -100,12 +101,24 @@
       render();
     };
     candidate.onerror = () => {
+      if (version !== loadVersion) return;
       image = null;
       input.value = '';
       saveButton.disabled = true;
       setStatus('无法读取这张图片，请换一张重试。', true);
     };
-    candidate.src = objectUrl;
+    reader.onload = () => {
+      if (version !== loadVersion || typeof reader.result !== 'string') return;
+      candidate.src = reader.result;
+    };
+    reader.onerror = () => {
+      if (version !== loadVersion) return;
+      image = null;
+      input.value = '';
+      saveButton.disabled = true;
+      setStatus('无法读取这张图片，请换一张重试。', true);
+    };
+    reader.readAsDataURL(file);
   }
 
   input.addEventListener('change', () => loadFile(input.files?.[0]));
@@ -182,9 +195,5 @@
       }
       HTMLFormElement.prototype.submit.call(form);
     }, 'image/webp', 0.86);
-  });
-
-  window.addEventListener('beforeunload', () => {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
   });
 })();
