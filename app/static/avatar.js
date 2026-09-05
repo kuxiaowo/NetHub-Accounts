@@ -3,14 +3,26 @@
 
   const root = document.querySelector('[data-avatar-editor]');
   if (!root) return;
+
   const form = root.querySelector('[data-avatar-form]');
   const input = root.querySelector('[data-avatar-input]');
-  const preview = root.querySelector('[data-avatar-preview]');
+  const stage = root.querySelector('[data-avatar-crop-stage]');
   const canvas = root.querySelector('[data-avatar-canvas]');
+  const livePreview = root.querySelector('[data-avatar-live-preview]');
+  const liveCanvas = root.querySelector('[data-avatar-live-canvas]');
+  const currentImage = root.querySelector('[data-avatar-current-image]');
   const zoom = root.querySelector('[data-avatar-zoom]');
   const zoomWrap = root.querySelector('[data-avatar-zoom-wrap]');
+  const fileName = root.querySelector('[data-avatar-file-name]');
+  const saveButton = root.querySelector('[data-avatar-save]');
+  const status = root.querySelector('[data-avatar-status]');
   const colorInput = root.querySelector('input[name="avatar_color"]');
+  if (!form || !input || !stage || !canvas || !liveCanvas || !zoom || !saveButton) return;
+
   const context = canvas.getContext('2d');
+  const liveContext = liveCanvas.getContext('2d');
+  const cropInset = canvas.width * 0.08;
+  const cropSize = canvas.width - cropInset * 2;
   let image = null;
   let objectUrl = null;
   let offsetX = 0;
@@ -19,28 +31,59 @@
   let pointerX = 0;
   let pointerY = 0;
 
-  function draw() {
+  function setStatus(message, isError = false) {
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('error', isError);
+  }
+
+  function render() {
     if (!image) return;
-    const size = canvas.width;
-    const base = Math.max(size / image.naturalWidth, size / image.naturalHeight);
-    const scale = base * Number(zoom.value);
+    const scale = Math.max(cropSize / image.naturalWidth, cropSize / image.naturalHeight)
+      * Number(zoom.value);
     const width = image.naturalWidth * scale;
     const height = image.naturalHeight * scale;
-    const limitX = Math.max(0, (width - size) / 2);
-    const limitY = Math.max(0, (height - size) / 2);
+    const limitX = Math.max(0, (width - cropSize) / 2);
+    const limitY = Math.max(0, (height - cropSize) / 2);
     offsetX = Math.max(-limitX, Math.min(limitX, offsetX));
     offsetY = Math.max(-limitY, Math.min(limitY, offsetY));
-    context.clearRect(0, 0, size, size);
-    context.drawImage(image, (size - width) / 2 + offsetX, (size - height) / 2 + offsetY, width, height);
-    preview.innerHTML = '';
-    const rendered = document.createElement('img');
-    rendered.src = canvas.toDataURL('image/webp', 0.86);
-    rendered.alt = '待上传头像预览';
-    preview.append(rendered);
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(
+      image,
+      (canvas.width - width) / 2 + offsetX,
+      (canvas.height - height) / 2 + offsetY,
+      width,
+      height,
+    );
+    liveContext.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+    liveContext.drawImage(
+      canvas,
+      cropInset,
+      cropInset,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      liveCanvas.width,
+      liveCanvas.height,
+    );
+    liveCanvas.hidden = false;
+    if (currentImage) currentImage.hidden = true;
   }
 
   function loadFile(file) {
     if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      input.value = '';
+      setStatus('请选择 JPEG、PNG 或 WebP 图片。', true);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      input.value = '';
+      setStatus('源图片不能超过 5 MiB。', true);
+      return;
+    }
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = URL.createObjectURL(file);
     const candidate = new Image();
@@ -49,42 +92,83 @@
       offsetX = 0;
       offsetY = 0;
       zoom.value = '1';
+      stage.hidden = false;
       zoomWrap.hidden = false;
-      draw();
+      saveButton.disabled = false;
+      if (fileName) fileName.textContent = file.name;
+      setStatus('图片已载入，可拖动和缩放调整圆框选区。');
+      render();
+    };
+    candidate.onerror = () => {
+      image = null;
+      input.value = '';
+      saveButton.disabled = true;
+      setStatus('无法读取这张图片，请换一张重试。', true);
     };
     candidate.src = objectUrl;
   }
 
-  preview.addEventListener('click', () => input.click());
   input.addEventListener('change', () => loadFile(input.files?.[0]));
-  zoom.addEventListener('input', draw);
+  zoom.addEventListener('input', render);
   colorInput?.addEventListener('input', () => {
-    preview.style.setProperty('--avatar-color', colorInput.value);
+    livePreview?.style.setProperty('--avatar-color', colorInput.value);
   });
-  preview.addEventListener('pointerdown', (event) => {
+
+  canvas.addEventListener('pointerdown', (event) => {
     if (!image) return;
+    event.preventDefault();
     dragging = true;
     pointerX = event.clientX;
     pointerY = event.clientY;
-    preview.setPointerCapture(event.pointerId);
+    stage.classList.add('is-dragging');
+    canvas.setPointerCapture(event.pointerId);
   });
-  preview.addEventListener('pointermove', (event) => {
+  canvas.addEventListener('pointermove', (event) => {
     if (!dragging) return;
-    const ratio = canvas.width / preview.clientWidth;
+    const ratio = canvas.width / canvas.getBoundingClientRect().width;
     offsetX += (event.clientX - pointerX) * ratio;
     offsetY += (event.clientY - pointerY) * ratio;
     pointerX = event.clientX;
     pointerY = event.clientY;
-    draw();
+    render();
   });
-  preview.addEventListener('pointerup', () => { dragging = false; });
-  preview.addEventListener('pointercancel', () => { dragging = false; });
+  function stopDragging() {
+    dragging = false;
+    stage.classList.remove('is-dragging');
+  }
+  canvas.addEventListener('pointerup', stopDragging);
+  canvas.addEventListener('pointercancel', stopDragging);
+  canvas.addEventListener('wheel', (event) => {
+    if (!image) return;
+    event.preventDefault();
+    const next = Number(zoom.value) + (event.deltaY < 0 ? 0.08 : -0.08);
+    zoom.value = String(Math.max(Number(zoom.min), Math.min(Number(zoom.max), next)));
+    render();
+  }, { passive: false });
+
   form.addEventListener('submit', (event) => {
     if (!image) return;
     event.preventDefault();
-    canvas.toBlob((blob) => {
+    saveButton.disabled = true;
+    setStatus('正在生成并压缩头像…');
+    const output = document.createElement('canvas');
+    output.width = 512;
+    output.height = 512;
+    output.getContext('2d').drawImage(
+      canvas,
+      cropInset,
+      cropInset,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      output.width,
+      output.height,
+    );
+    output.toBlob((blob) => {
       if (!blob) {
-        form.submit();
+        saveButton.disabled = false;
+        setStatus('浏览器无法生成裁剪结果，请换一个浏览器重试。', true);
         return;
       }
       try {
@@ -92,9 +176,15 @@
         transfer.items.add(new File([blob], 'avatar.webp', { type: 'image/webp' }));
         input.files = transfer.files;
       } catch (_) {
-        // Older browsers submit the selected source; the server still crops and validates it.
+        saveButton.disabled = false;
+        setStatus('浏览器不支持提交裁剪结果，请升级浏览器后重试。', true);
+        return;
       }
-      form.submit();
+      HTMLFormElement.prototype.submit.call(form);
     }, 'image/webp', 0.86);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   });
 })();

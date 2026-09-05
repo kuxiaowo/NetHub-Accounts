@@ -1,28 +1,42 @@
 {% extends "base.html" %}
 {% block title %}我的账号 · NetHub Accounts{% endblock %}
-{% block head %}<script src="{{ url_for('static', filename='avatar.js') }}" defer></script>{% endblock %}
+{% block head %}<script src="{{ url_for('static', filename='avatar.js', v='cropper2') }}" defer></script>{% endblock %}
 {% block content %}
 <div class="page-heading"><div><p class="eyebrow">ACCOUNT</p><h1>我的账号</h1></div><a class="button secondary" href="{{ url_for('web.oauth_logout') }}">退出所有网站</a></div>
 <div class="two-column">
   <section class="panel avatar-panel" data-avatar-editor>
     <h2>统一头像</h2>
     <div class="avatar-editor-layout">
-      <button class="avatar avatar-large avatar-picker" type="button" data-avatar-preview
+      <div class="avatar-preview-column">
+        <span class="avatar-preview-label">实时预览</span>
+        <span class="avatar avatar-large avatar-live-preview" data-avatar-live-preview
               style="--avatar-color:{{ current_user.avatar_color }}"
-              data-avatar-fallback="{{ current_user.display_name[:1]|upper }}"
-              aria-label="选择头像图片">
-        <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="当前头像">
-      </button>
+              data-avatar-fallback="{{ current_user.display_name[:1]|upper }}">
+          <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="当前头像" data-avatar-current-image>
+          <canvas width="192" height="192" data-avatar-live-canvas hidden></canvas>
+        </span>
+        <p class="field-help avatar-preview-help">圆形预览就是保存后的头像效果。</p>
+      </div>
       <div class="avatar-controls">
         <form method="post" action="{{ url_for('web.account_avatar_upload') }}" enctype="multipart/form-data" data-avatar-form>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" data-avatar-input required>
-          <canvas width="512" height="512" data-avatar-canvas hidden></canvas>
-          <label data-avatar-zoom-wrap hidden>缩放
+          <div class="avatar-file-row">
+            <label class="button secondary avatar-file-button" for="avatar-file">选择图片</label>
+            <input id="avatar-file" class="avatar-file-input" type="file" name="avatar"
+                   accept="image/jpeg,image/png,image/webp" data-avatar-input required>
+            <span class="avatar-file-name" data-avatar-file-name>尚未选择图片</span>
+          </div>
+          <div class="avatar-crop-stage" data-avatar-crop-stage hidden>
+            <canvas width="512" height="512" data-avatar-canvas aria-label="头像裁剪区域"></canvas>
+            <span class="avatar-crop-mask" aria-hidden="true"></span>
+            <span class="avatar-crop-hint" aria-hidden="true">拖动图片调整位置</span>
+          </div>
+          <label class="avatar-zoom-control" data-avatar-zoom-wrap hidden>缩放
             <input type="range" min="1" max="3" step="0.01" value="1" data-avatar-zoom>
           </label>
-          <p class="field-help">拖动头像调整位置；保存时会压缩为 512×512 WebP。</p>
-          <button class="button" type="submit" data-avatar-save>上传头像</button>
+          <p class="field-help">在固定圆框下拖动图片，使用滑杆或滚轮缩放；保存时仅上传圆框选中的区域。</p>
+          <p class="avatar-editor-status" data-avatar-status aria-live="polite"></p>
+          <button class="button avatar-save-button" type="submit" data-avatar-save disabled>保存头像</button>
         </form>
         {% if current_user.avatar_file %}
           <form method="post" action="{{ url_for('web.account_avatar_delete') }}">
