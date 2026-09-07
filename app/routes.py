@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import wraps
+from urllib.parse import urlsplit
 
 from authlib.oauth2 import OAuth2Error
 from authlib.oidc.core.errors import LoginRequiredError
@@ -11,6 +12,7 @@ from flask import (
     flash,
     g,
     jsonify,
+    make_response,
     redirect,
     render_template,
     request,
@@ -110,6 +112,20 @@ def admin_required(view):
 def require_csrf() -> None:
     if not validate_csrf(request.form.get("csrf_token") or request.headers.get("X-CSRF-Token")):
         abort(400, "CSRF validation failed")
+
+
+def continue_after_form(destination: str):
+    """End a form navigation before continuing an OAuth redirect flow.
+
+    Chromium applies ``form-action`` to every redirect in a form submission.
+    Rendering a same-origin continuation page keeps the strict CSP while making
+    the following OAuth navigation a regular top-level navigation.
+    """
+    if urlsplit(destination).path != "/oauth/authorize":
+        return redirect(destination)
+    response = make_response(render_template("continue.html", destination=destination))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def record_admin_action(action: str) -> None:
@@ -230,7 +246,7 @@ def register():
             db.session.commit()
             flash("用户名已存在。", "error")
             return render_template("register.html", disabled=False), 409
-        response = redirect(next_url or url_for("web.account"))
+        response = continue_after_form(next_url or url_for("web.account"))
         set_session_cookie(response, raw_token)
         return response
     return render_template("register.html", disabled=False)
@@ -268,7 +284,7 @@ def login():
         if user.must_change_password:
             destination = url_for("web.account", next=destination)
             flash("这是临时密码，请先设置新密码。", "warning")
-        response = redirect(destination)
+        response = continue_after_form(destination)
         set_session_cookie(response, raw_token)
         return response
     return render_template("login.html")
@@ -327,7 +343,9 @@ def account():
                     audit("account.password_changed", target=g.current_user)
                     new_session, raw_token = create_web_session(g.current_user)
                     db.session.commit()
-                    response = redirect(safe_next(request.args.get("next"), url_for("web.account")))
+                    response = continue_after_form(
+                        safe_next(request.args.get("next"), url_for("web.account"))
+                    )
                     set_session_cookie(response, raw_token)
                     flash("密码已修改，其他会话已退出。", "success")
                     return response

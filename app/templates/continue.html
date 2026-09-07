@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}正在返回 · NetHub Accounts{% endblock %}
+{% block head %}
+  <meta http-equiv="refresh" content="0; url={{ destination }}">
+{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <p class="eyebrow">SIGNED IN</p>
+  <h1>登录成功，正在返回</h1>
+  <p>如果页面没有自动跳转，请点击下面的按钮继续。</p>
+  <a class="button full" data-auth-continue href="{{ destination }}">继续</a>
+</section>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='continue.js', v='auth1') }}" defer></script>
+{% endblock %}
