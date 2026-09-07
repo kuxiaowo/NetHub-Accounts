@@ -108,7 +108,15 @@ def authenticate(username: str, password: str) -> User | None:
         )
     ).all()
     if any(verify_legacy_password(item, password) for item in legacy_items):
-        user.password_hash = hash_password(password)
+        # A legacy password may predate the central 8-128 character policy.
+        # It has already been verified against the imported hash, so migrate it
+        # without rejecting the login and require the user to choose a compliant
+        # password before authorizing any application.
+        try:
+            validate_password(password)
+        except ValueError:
+            user.must_change_password = True
+        user.password_hash = PASSWORD_HASH.hash(password)
         for item in db.session.scalars(
             select(LegacyCredential).where(LegacyCredential.user_id == user.id)
         ):

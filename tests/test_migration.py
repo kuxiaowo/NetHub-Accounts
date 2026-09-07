@@ -28,7 +28,7 @@ def todo_hash(password: str) -> str:
     )
 
 
-def source_databases(tmp_path, *, collision=False):
+def source_databases(tmp_path, *, collision=False, todo_password="todo-password"):
     todo = tmp_path / "todo.sqlite3"
     with sqlite3.connect(todo) as connection:
         connection.execute(
@@ -37,7 +37,7 @@ def source_databases(tmp_path, *, collision=False):
         )
         connection.execute(
             "INSERT INTO users VALUES (1, 'alice', 'Alice Todo', 'admin', ?)",
-            (todo_hash("todo-password"),),
+            (todo_hash(todo_password),),
         )
     techx = tmp_path / "techx.sqlite3"
     with sqlite3.connect(techx) as connection:
@@ -81,6 +81,26 @@ def test_apply_is_idempotent_and_upgrades_legacy_password(app, tmp_path):
             select(LegacyCredential).where(LegacyCredential.user_id == user.id)
         ).all()
         apply_plan(plan_path, items, mapping_path)
+        assert not db.session.scalars(
+            select(LegacyCredential).where(LegacyCredential.user_id == user.id)
+        ).all()
+
+
+def test_short_legacy_password_is_migrated_and_forces_password_change(app, tmp_path):
+    todo, techx = source_databases(tmp_path, todo_password="short")
+    items = load_sources(todo, techx)
+    plan = build_plan(items)
+    plan_path = tmp_path / "plan.json"
+    mapping_path = tmp_path / "mapping.json"
+    write_plan(plan, plan_path)
+
+    with app.app_context():
+        apply_plan(plan_path, items, mapping_path)
+        user = authenticate("ALICE", "short")
+
+        assert user is not None
+        assert user.password_hash.startswith("$argon2")
+        assert user.must_change_password is True
         assert not db.session.scalars(
             select(LegacyCredential).where(LegacyCredential.user_id == user.id)
         ).all()
