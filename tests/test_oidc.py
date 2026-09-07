@@ -178,6 +178,38 @@ def test_signup_hint_opens_registration_and_preserves_authorization(app, client)
     assert parse_qs(urlsplit(response.location).query)["next"][0].startswith("/oauth/authorize?")
 
 
+def test_login_ends_form_navigation_before_oauth_callback_redirect(app, client):
+    with app.app_context():
+        create_user()
+        add_oauth_client()
+    _, challenge = pkce_pair()
+
+    login_redirect = authorize(client, challenge)
+    authorization_path = parse_qs(urlsplit(login_redirect.location).query)["next"][0]
+    login_page = client.get(login_redirect.location)
+    response = client.post(
+        login_redirect.location,
+        data={
+            "csrf_token": csrf_from(login_page),
+            "username": "alice",
+            "password": "password-123",
+            "next": authorization_path,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert "form-action 'self'" in response.headers["Content-Security-Policy"]
+    assert b"data-auth-continue" in response.data
+    assert b"/oauth/authorize?" in response.data
+
+    callback_redirect = client.get(authorization_path)
+    callback_query = parse_qs(urlsplit(callback_redirect.location).query)
+    assert callback_redirect.status_code == 302
+    assert callback_redirect.location.startswith(REDIRECT_URI)
+    assert callback_query["state"] == ["state-123"]
+
+
 def test_discovery_and_jwks(client):
     discovery = client.get("/.well-known/openid-configuration").get_json()
     assert discovery["issuer"] == "https://accounts.test"
