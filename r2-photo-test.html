@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>新年点灯仪式 · 活动照片</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f5f7fb;
+      --surface: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #dce2ea;
+      --primary: #275efe;
+      --shadow: 0 18px 50px rgb(23 32 51 / 18%);
+    }
+
+    * { box-sizing: border-box; }
+    html { scrollbar-gutter: stable; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--paper);
+      font-family: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+    }
+    body.modal-open { overflow: hidden; }
+
+    .page {
+      width: min(1480px, 100%);
+      margin: 0 auto;
+      padding: 28px clamp(14px, 3vw, 36px) 56px;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 20px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0 0 7px;
+      color: var(--primary);
+      font: 700 12px/1.2 Consolas, monospace;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(25px, 4vw, 44px); line-height: 1.15; letter-spacing: -.035em; }
+    .summary { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+    .hint { color: var(--muted); font-size: 13px; white-space: nowrap; }
+
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .photo-item {
+      position: relative;
+      display: grid;
+      padding: 7px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: var(--surface);
+      cursor: zoom-in;
+      box-shadow: 0 1px 2px rgb(23 32 51 / 4%);
+      transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+    }
+    .photo-item:hover {
+      z-index: 1;
+      border-color: #9cb3ff;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgb(23 32 51 / 12%);
+    }
+    .photo-item:focus-visible { outline: 3px solid rgb(39 94 254 / 35%); outline-offset: 2px; }
+    .photo-item img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 6px;
+      background: #e8edf5;
+    }
+    .photo-item .number {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      color: #fff;
+      background: rgb(12 18 28 / 72%);
+      font: 600 11px/1 Consolas, monospace;
+      backdrop-filter: blur(6px);
+    }
+
+    .photo-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      place-items: center;
+      padding: 24px;
+    }
+    .photo-modal.is-open { display: grid; }
+    .backdrop { position: absolute; inset: 0; background: rgb(10 16 27 / 78%); backdrop-filter: blur(5px); }
+    .modal-panel {
+      position: relative;
+      width: min(1180px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: hidden;
+      border: 1px solid #39445a;
+      border-radius: 10px;
+      background: #101620;
+      box-shadow: var(--shadow);
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 62px;
+      padding: 10px 14px 10px 18px;
+      color: #f8fafc;
+      border-bottom: 1px solid #2a3446;
+    }
+    .modal-copy { min-width: 0; }
+    .modal-title { margin: 0; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-meta { margin: 4px 0 0; color: #9ca9bc; font: 12px/1.3 Consolas, monospace; }
+    .modal-actions { display: flex; gap: 8px; }
+    .action {
+      display: grid;
+      min-width: 40px;
+      height: 40px;
+      place-items: center;
+      padding: 0 13px;
+      border: 1px solid #3a465b;
+      border-radius: 7px;
+      color: #eef2f8;
+      background: #182130;
+      font: 600 13px/1 inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .action:hover { border-color: #7896ff; color: #fff; }
+    .action.close { padding: 0; font-size: 25px; }
+    .action:focus-visible, .modal-nav:focus-visible { outline: 3px solid #7896ff; outline-offset: 2px; }
+    .modal-stage {
+      position: relative;
+      display: grid;
+      min-height: 280px;
+      height: calc(100vh - 112px);
+      place-items: center;
+      background: #090d13;
+    }
+    .modal-image {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+    .loading {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      z-index: 2;
+      margin: 0;
+      padding: 7px 10px;
+      color: #cbd5e1;
+      background: rgb(16 22 32 / 82%);
+      border: 1px solid #344054;
+      border-radius: 5px;
+      font: 12px/1.3 Consolas, monospace;
+      transform: translateX(-50%);
+    }
+    .modal-nav {
+      position: absolute;
+      top: 50%;
+      z-index: 3;
+      width: 46px;
+      height: 62px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgb(255 255 255 / 52%);
+      border-radius: 8px;
+      color: #fff;
+      background: rgb(12 18 28 / 64%);
+      font-size: 38px;
+      line-height: 1;
+      cursor: pointer;
+      transform: translateY(-50%);
+    }
+    .modal-nav:hover { background: rgb(12 18 28 / 88%); }
+    .modal-nav.prev { left: 14px; }
+    .modal-nav.next { right: 14px; }
+
+    @media (max-width: 640px) {
+      .page { padding-top: 18px; }
+      .page-head { align-items: start; }
+      .hint { display: none; }
+      .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+      .photo-item { padding: 5px; }
+      .photo-modal { padding: 0; }
+      .modal-panel { width: 100%; max-height: 100vh; height: 100vh; border: 0; border-radius: 0; }
+      .modal-stage { height: calc(100vh - 62px); }
+      .modal-nav { width: 40px; height: 54px; }
+      .modal-nav.prev { left: 7px; }
+      .modal-nav.next { right: 7px; }
+      .action.open-original { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .photo-item { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">NetHub Campus Wiki · Photos</p>
+        <h1>新年点灯仪式逐梦新光</h1>
+        <p class="summary"><span id="photoCount">—</span> 张照片 · 网格仅加载 WebP 缩略图，点开后读取 R2 原图</p>
+      </div>
+      <span class="hint">点击照片查看原图</span>
+    </header>
+    <section id="photoGrid" class="photo-grid" aria-live="polite"></section>
+  </main>
+
+  <div id="photoModal" class="photo-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="backdrop" data-close-modal></div>
+    <section class="modal-panel">
+      <header class="modal-head">
+        <div class="modal-copy">
+          <h2 id="modalTitle" class="modal-title">照片</h2>
+          <p id="modalMeta" class="modal-meta"></p>
+        </div>
+        <div class="modal-actions">
+          <a id="openOriginal" class="action open-original" href="#" target="_blank" rel="noopener">打开原文件</a>
+          <button class="action close" type="button" aria-label="关闭" data-close-modal>×</button>
+        </div>
+      </header>
+      <div class="modal-stage">
+        <button id="modalPrev" class="modal-nav prev" type="button" aria-label="上一张">‹</button>
+        <img id="modalImage" class="modal-image" alt="">
+        <p id="loading" class="loading">正在读取原图…</p>
+        <button id="modalNext" class="modal-nav next" type="button" aria-label="下一张">›</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="./r2-photo-manifest.js"></script>
+  <script>
+    const R2_BASE = 'https://pub-7811981eb7364741b029d2cbfc0f0a7c.r2.dev';
+    const FOLDER = 'Photos/2025.12.30新年点灯仪式逐梦新光/';
+    const photos = Array.isArray(window.R2_PHOTOS) ? window.R2_PHOTOS : [];
+    const grid = document.querySelector('#photoGrid');
+    const modal = document.querySelector('#photoModal');
+    const modalImage = document.querySelector('#modalImage');
+    const modalTitle = document.querySelector('#modalTitle');
+    const modalMeta = document.querySelector('#modalMeta');
+    const loading = document.querySelector('#loading');
+    const openOriginal = document.querySelector('#openOriginal');
+    let activeIndex = 0;
+    let loadStartedAt = 0;
+    let lastFocused = null;
+
+    function encodeKey(key) {
+      return R2_BASE + '/' + key.split('/').map(encodeURIComponent).join('/');
+    }
+
+    function originalUrl(photo) {
+      return encodeKey(FOLDER + photo.name);
+    }
+
+    function thumbUrl(photo) {
+      const thumbName = photo.name.replace(/\.jpg$/i, '') + '.webp';
+      return encodeKey(FOLDER + '.thumbs/' + thumbName);
+    }
+
+    function formatSize(bytes) {
+      return `${(bytes / 1048576).toFixed(2)} MiB`;
+    }
+
+    function renderGrid() {
+      document.querySelector('#photoCount').textContent = photos.length;
+      grid.innerHTML = photos.map((photo, index) => `
+        <button class="photo-item" type="button" data-index="${index}" aria-label="查看原图 ${photo.name}">
+          <img src="${thumbUrl(photo)}" alt="" loading="lazy" decoding="async">
+          <span class="number">${String(index + 1).padStart(3, '0')}</span>
+        </button>
+      `).join('');
+
+      grid.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-index]');
+        if (!button) return;
+        lastFocused = button;
+        openPhoto(Number(button.dataset.index));
+      });
+    }
+
+    function showPhoto(index) {
+      activeIndex = (index + photos.length) % photos.length;
+      const photo = photos[activeIndex];
+      const url = originalUrl(photo);
+      modalImage.removeAttribute('src');
+      modalImage.alt = photo.name;
+      modalTitle.textContent = photo.name;
+      modalMeta.textContent = `${activeIndex + 1} / ${photos.length} · ${formatSize(photo.size)}`;
+      openOriginal.href = url;
+      loading.hidden = false;
+      loading.textContent = '正在读取原图…';
+      loadStartedAt = performance.now();
+      modalImage.src = url;
+    }
+
+    function openPhoto(index) {
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+      showPhoto(index);
+      modal.querySelector('[data-close-modal]').focus();
+    }
+
+    function closePhoto() {
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      modalImage.removeAttribute('src');
+      lastFocused?.focus();
+    }
+
+    modalImage.addEventListener('load', () => {
+      const elapsed = (performance.now() - loadStartedAt) / 1000;
+      const photo = photos[activeIndex];
+      const mbps = (photo.size * 8 / 1_000_000) / elapsed;
+      loading.textContent = `原图完成 · ${elapsed.toFixed(2)} s · ${mbps.toFixed(2)} Mbps`;
+      window.setTimeout(() => { loading.hidden = true; }, 1600);
+    });
+
+    modalImage.addEventListener('error', () => {
+      loading.hidden = false;
+      loading.textContent = '原图加载失败';
+    });
+
+    document.querySelectorAll('[data-close-modal]').forEach((element) => element.addEventListener('click', closePhoto));
+    document.querySelector('#modalPrev').addEventListener('click', () => showPhoto(activeIndex - 1));
+    document.querySelector('#modalNext').addEventListener('click', () => showPhoto(activeIndex + 1));
+    document.addEventListener('keydown', (event) => {
+      if (!modal.classList.contains('is-open')) return;
+      if (event.key === 'Escape') closePhoto();
+      if (event.key === 'ArrowLeft') showPhoto(activeIndex - 1);
+      if (event.key === 'ArrowRight') showPhoto(activeIndex + 1);
+    });
+
+    renderGrid();
+  </script>
+</body>
+</html>

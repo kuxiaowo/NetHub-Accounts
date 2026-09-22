@@ -26,6 +26,7 @@ from .avatars import (
     avatar_response,
     delete_avatar_file,
     normalize_avatar_color,
+    staged_avatar_upload,
     store_avatar,
 )
 from .backchannel import deliver_pending_jobs, queue_logout
@@ -371,11 +372,11 @@ def account_avatar_upload():
     if upload is None:
         flash("请选择头像文件。", "error")
         return redirect(url_for("web.account"))
-    raw = upload.stream.read(current_app.config["AVATAR_UPLOAD_MAX_BYTES"] + 1)
     old_filename = g.current_user.avatar_file
     new_filename = None
     try:
-        new_filename = store_avatar(g.current_user, raw)
+        with staged_avatar_upload(upload.stream) as temporary_path:
+            new_filename = store_avatar(g.current_user, temporary_path)
         g.current_user.avatar_file = new_filename
         g.current_user.avatar_updated_at = utc_now()
         audit("account.avatar_updated", target=g.current_user)
@@ -438,16 +439,27 @@ def public_avatar(subject):
 @web.get("/admin")
 @admin_required
 def admin():
-    users = db.session.scalars(select(User).order_by(User.id)).all()
+    page = max(request.args.get("page", default=1, type=int) or 1, 1)
+    per_page = request.args.get("per_page", default=50, type=int) or 50
+    per_page = min(max(per_page, 1), 100)
+    total_users = db.session.scalar(select(func.count(User.id))) or 0
+    total_pages = max(1, (total_users + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    users = db.session.scalars(
+        select(User).order_by(User.id).offset((page - 1) * per_page).limit(per_page)
+    ).all()
     clients = db.session.scalars(select(OAuth2Client).order_by(OAuth2Client.id)).all()
     client_names = {client.client_id: client.client_name or client.client_id for client in clients}
     membership_map: dict[int, list[str]] = {}
-    for membership in db.session.scalars(
-        select(AppMembership).order_by(AppMembership.user_id, AppMembership.client_id)
-    ):
-        membership_map.setdefault(membership.user_id, []).append(
-            client_names.get(membership.client_id, membership.client_id)
+    user_ids = [user.id for user in users]
+    if user_ids:
+        memberships = db.session.execute(
+            select(AppMembership.user_id, AppMembership.client_id)
+            .where(AppMembership.user_id.in_(user_ids))
+            .order_by(AppMembership.user_id, AppMembership.client_id)
         )
+        for user_id, client_id in memberships:
+            membership_map.setdefault(user_id, []).append(client_names.get(client_id, client_id))
     failed_jobs = db.session.scalar(
         select(func.count(BackchannelJob.id)).where(BackchannelJob.status == "failed")
     )
@@ -457,6 +469,10 @@ def admin():
         clients=clients,
         membership_map=membership_map,
         failed_jobs=failed_jobs or 0,
+        page=page,
+        per_page=per_page,
+        total_users=total_users,
+        total_pages=total_pages,
     )
 
 

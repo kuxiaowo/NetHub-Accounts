@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
+from collections import OrderedDict
+from pathlib import Path
 
 from authlib.integrations.flask_oauth2 import ResourceProtector, current_token
 from authlib.oauth2.rfc6749.grants import AuthorizationCodeGrant
@@ -17,6 +20,49 @@ from .avatars import avatar_url
 from .extensions import authorization, db
 from .models import AppMembership, AuthorizationCode, OAuth2Client, OAuth2Token, User, utc_now
 from .security import token_digest
+
+_SIGNING_KEY_CACHE_MAX_ENTRIES = 8
+_SIGNING_KEY_CACHE: OrderedDict[Path, tuple[tuple[int, int, int, int, int], object, str]] = (
+    OrderedDict()
+)
+_SIGNING_KEY_CACHE_LOCK = threading.Lock()
+
+
+def _key_file_fingerprint(path: Path) -> tuple[int, int, int, int, int]:
+    stat = path.stat()
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def _read_stable_key_file(path: Path) -> tuple[bytes, tuple[int, int, int, int, int]]:
+    """Read a key whose metadata stays unchanged for the duration of the read."""
+    for _attempt in range(3):
+        before = _key_file_fingerprint(path)
+        pem = path.read_bytes()
+        after = _key_file_fingerprint(path)
+        if before == after:
+            return pem, after
+    raise RuntimeError(f"OIDC signing key changed repeatedly while being read: {path}")
+
+
+def get_signing_key(path: Path | None = None):
+    """Return a parsed signing key, reloading it after an atomic key rotation."""
+    key_path = Path(path or current_app.config["OIDC_SIGNING_KEY_PATH"]).resolve()
+    with _SIGNING_KEY_CACHE_LOCK:
+        fingerprint = _key_file_fingerprint(key_path)
+        cached = _SIGNING_KEY_CACHE.get(key_path)
+        if cached and cached[0] == fingerprint:
+            _SIGNING_KEY_CACHE.move_to_end(key_path)
+            return cached[1], cached[2]
+
+        pem, current_fingerprint = _read_stable_key_file(key_path)
+        parsed_key = import_key(pem, "RSA")
+        key_id = hashlib.sha256(parsed_key.thumbprint().encode("ascii")).hexdigest()[:16]
+        key = import_key(pem, "RSA", {"kid": key_id})
+        _SIGNING_KEY_CACHE[key_path] = (current_fingerprint, key, key_id)
+        _SIGNING_KEY_CACHE.move_to_end(key_path)
+        while len(_SIGNING_KEY_CACHE) > _SIGNING_KEY_CACHE_MAX_ENTRIES:
+            _SIGNING_KEY_CACHE.popitem(last=False)
+        return key, key_id
 
 
 class RequiredS256CodeChallenge(CodeChallenge):
@@ -76,8 +122,8 @@ class OpenIDCodeImpl(OpenIDCode):
     DEFAULT_EXPIRES_IN = 300
 
     def resolve_client_private_key(self, client):
-        pem = current_app.config["OIDC_SIGNING_KEY_PATH"].read_bytes()
-        return import_key(pem, "RSA", {"kid": current_app.config["OIDC_KEY_ID"]})
+        key, _key_id = get_signing_key()
+        return key
 
     def get_client_claims(self, client):
         return {
@@ -185,13 +231,10 @@ def init_oauth(app) -> None:
 
 
 def public_jwks() -> dict:
-    pem = current_app.config["OIDC_SIGNING_KEY_PATH"].read_bytes()
-    key = import_key(pem, "RSA", {"kid": current_app.config["OIDC_KEY_ID"]})
+    key, key_id = get_signing_key()
     return {
         "keys": [
-            key.as_dict(
-                private=False, use="sig", alg="RS256", kid=current_app.config["OIDC_KEY_ID"]
-            )
+            key.as_dict(private=False, use="sig", alg="RS256", kid=key_id)
         ]
     }
 
@@ -209,5 +252,4 @@ def userinfo_payload() -> dict:
 def signing_key_id(path) -> str:
     if not path.is_file():
         return "missing"
-    key = import_key(path.read_bytes(), "RSA")
-    return hashlib.sha256(key.thumbprint().encode("ascii")).hexdigest()[:16]
+    return get_signing_key(Path(path))[1]

@@ -8,11 +8,11 @@ from datetime import timedelta
 import requests
 from flask import current_app
 from joserfc import jwt
-from joserfc.jwk import import_key
 from sqlalchemy import select
 
 from .extensions import db
 from .models import AppMembership, BackchannelJob, OAuth2Client, User, utc_now
+from .oidc import get_signing_key
 
 LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
 
@@ -49,12 +49,8 @@ def _logout_token(job: BackchannelJob, user: User) -> str:
     }
     if job.sid:
         claims["sid"] = job.sid
-    key = import_key(
-        current_app.config["OIDC_SIGNING_KEY_PATH"].read_bytes(),
-        "RSA",
-        {"kid": current_app.config["OIDC_KEY_ID"]},
-    )
-    return jwt.encode({"alg": "RS256", "kid": current_app.config["OIDC_KEY_ID"]}, claims, key)
+    key, key_id = get_signing_key()
+    return jwt.encode({"alg": "RS256", "kid": key_id}, claims, key)
 
 
 def deliver_pending_jobs(limit: int = 10) -> dict[str, int]:

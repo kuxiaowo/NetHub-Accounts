@@ -4,6 +4,7 @@ Flask-SQLAlchemy>=3.1,<4
 SQLAlchemy>=2.0,<3
 alembic>=1.16,<2
 cryptography>=45,<47
+joserfc>=1.4,<2
 gunicorn>=23,<24; platform_system != "Windows"
 pwdlib[argon2]>=0.3,<1
 python-dotenv>=1.1,<2

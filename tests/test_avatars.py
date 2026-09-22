@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import uuid
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -139,16 +140,20 @@ def test_upload_rejects_bad_input_and_requires_login_and_csrf(app, client):
     assert "不是有效图片".encode() in client.get("/account").data
 
 
-def test_decoder_rejects_pixel_limit_and_oversized_source(app, monkeypatch):
+def test_decoder_rejects_pixel_limit_and_oversized_source(app, monkeypatch, tmp_path):
+    oversized_pixels = tmp_path / "oversized-pixels.png"
+    oversized_pixels.write_bytes(image_bytes(size=(11, 10)))
+    oversized_file = tmp_path / "oversized-file.png"
+    oversized_file.write_bytes(b"x" * (app.config["AVATAR_UPLOAD_MAX_BYTES"] + 1))
     with app.app_context():
         monkeypatch.setattr(avatars, "MAX_SOURCE_PIXELS", 100)
         with pytest.raises(avatars.AvatarError, match="像素"):
-            avatars._decode_and_compress(image_bytes(size=(11, 10)))
+            avatars._decode_and_compress(oversized_pixels)
         with pytest.raises(avatars.AvatarError, match="5 MiB"):
-            avatars._decode_and_compress(b"x" * (app.config["AVATAR_UPLOAD_MAX_BYTES"] + 1))
+            avatars._decode_and_compress(oversized_file)
 
 
-def test_decoder_applies_exif_orientation(app):
+def test_decoder_applies_exif_orientation(app, tmp_path):
     source = Image.new("RGB", (400, 200), "red")
     for x in range(200, 400):
         for y in range(200):
@@ -158,14 +163,68 @@ def test_decoder_applies_exif_orientation(app):
     raw = io.BytesIO()
     source.save(raw, format="PNG", exif=exif)
 
+    source_path = tmp_path / "oriented.png"
+    source_path.write_bytes(raw.getvalue())
     with app.app_context():
-        encoded = avatars._decode_and_compress(raw.getvalue())
+        encoded = avatars._decode_and_compress(source_path)
     with Image.open(io.BytesIO(encoded)) as result:
         top = result.getpixel((256, 80))
         bottom = result.getpixel((256, 432))
         assert top[0] > top[2]
         assert bottom[2] > bottom[0]
         assert not result.getexif()
+
+
+def test_upload_staging_uses_bounded_reads_and_removes_temporary_file(app):
+    class TrackingStream(io.BytesIO):
+        largest_read = 0
+
+        def read(self, size=-1):
+            self.largest_read = max(self.largest_read, size)
+            return super().read(size)
+
+    stream = TrackingStream(image_bytes())
+    staged_path: Path | None = None
+    with app.app_context():
+        with avatars.staged_avatar_upload(stream) as path:
+            staged_path = path
+            assert path.is_file()
+            assert path.stat().st_size == len(stream.getvalue())
+        assert stream.largest_read <= avatars.UPLOAD_COPY_CHUNK_BYTES
+    assert staged_path is not None
+    assert not staged_path.exists()
+
+
+def test_upload_staging_removes_temporary_file_after_size_error(app, monkeypatch, tmp_path):
+    staged_path = tmp_path / "oversized.upload"
+
+    def named_temporary_file(**_kwargs):
+        return staged_path.open("w+b")
+
+    monkeypatch.setattr(avatars.tempfile, "NamedTemporaryFile", named_temporary_file)
+    oversized = io.BytesIO(b"x" * (app.config["AVATAR_UPLOAD_MAX_BYTES"] + 1))
+
+    with app.app_context(), pytest.raises(avatars.AvatarError, match="5 MiB"):
+        with avatars.staged_avatar_upload(oversized):
+            pytest.fail("oversized upload must not be yielded")
+
+    assert not staged_path.exists()
+
+
+def test_avatar_file_response_uses_file_wrapper(app, client):
+    with app.app_context():
+        user = create_user()
+        subject = user.sub
+        source_path = app.config["AVATAR_UPLOAD_DIR"].parent / "source.png"
+        source_path.write_bytes(image_bytes())
+        user.avatar_file = avatars.store_avatar(user, source_path)
+        db.session.commit()
+
+    response = client.get(f"/avatars/{subject}", buffered=False)
+    assert response.status_code == 200
+    assert response.is_streamed
+    assert not isinstance(response.response, (bytes, list, tuple))
+    response.close()
 
 
 def test_account_page_exposes_interactive_circle_cropper(app, client):
