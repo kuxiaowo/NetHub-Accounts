@@ -41,6 +41,10 @@ class Settings:
     port: int
     issuer: str
     database_uri: str
+    database_backend: str
+    d1_gateway_url: str
+    d1_gateway_secret: str
+    d1_gateway_timeout: float
     secret_key: str
     signing_key_path: Path
     registration_enabled: bool
@@ -59,6 +63,9 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, testing: bool = False) -> Settings:
+        database_backend = os.getenv(
+            "ACCOUNTS_DATABASE_BACKEND", "sqlite" if testing else "d1"
+        ).strip().casefold()
         raw_database = os.getenv("DATABASE_URL", "sqlite:///data/accounts.sqlite3")
         key_path = Path(os.getenv("OIDC_SIGNING_KEY_PATH", "data/oidc-rs256.pem"))
         if not key_path.is_absolute():
@@ -70,7 +77,15 @@ class Settings:
             host=os.getenv("ACCOUNTS_HOST", "127.0.0.1").strip(),
             port=_int("ACCOUNTS_PORT", 3400, 1),
             issuer=os.getenv("ACCOUNTS_ISSUER", "https://auth.nethub.wiki").rstrip("/"),
-            database_uri=_database_uri(raw_database),
+            database_uri=(
+                _database_uri(raw_database)
+                if database_backend == "sqlite"
+                else "sqlite:///:memory:"
+            ),
+            database_backend=database_backend,
+            d1_gateway_url=os.getenv("ACCOUNTS_D1_GATEWAY_URL", "").strip(),
+            d1_gateway_secret=os.getenv("ACCOUNTS_D1_GATEWAY_SECRET", "").strip(),
+            d1_gateway_timeout=float(os.getenv("ACCOUNTS_D1_GATEWAY_TIMEOUT", "10")),
             secret_key=os.getenv("ACCOUNTS_SECRET_KEY", "").strip(),
             signing_key_path=key_path,
             registration_enabled=_bool("REGISTRATION_ENABLED", False),
@@ -93,6 +108,12 @@ class Settings:
             raise RuntimeError("ACCOUNTS_HOST cannot be empty")
         if not settings.issuer.startswith("https://"):
             raise RuntimeError("ACCOUNTS_ISSUER must use https://")
+        if settings.database_backend not in {"sqlite", "d1"}:
+            raise RuntimeError("ACCOUNTS_DATABASE_BACKEND must be sqlite or d1")
+        if settings.database_backend == "d1" and (
+            not settings.d1_gateway_url or not settings.d1_gateway_secret
+        ):
+            raise RuntimeError("D1 backend requires ACCOUNTS_D1_GATEWAY_URL and ACCOUNTS_D1_GATEWAY_SECRET")
         if len(settings.secret_key.encode("utf-8")) < 32:
             raise RuntimeError("ACCOUNTS_SECRET_KEY must contain at least 32 bytes")
         if not settings.signing_key_path.is_file():

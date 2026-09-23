@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import json
 import re
 import secrets
 import unicodedata
@@ -12,7 +11,7 @@ from urllib.parse import urlsplit
 
 from flask import current_app, g, request, session
 from pwdlib import PasswordHash
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from werkzeug.security import check_password_hash as check_werkzeug_password
 
 from .extensions import db
@@ -27,10 +26,20 @@ from .models import (
     WebSession,
     utc_now,
 )
+from .security_repository import D1SecurityRepository, SqlAlchemySecurityRepository
+from .account_repository import account_repository
 
 PASSWORD_HASH = PasswordHash.recommended()
 USERNAME_PATTERN = re.compile(r"^[\w.\-]{2,32}$", re.UNICODE)
 SESSION_COOKIE = "nethub_session"
+
+
+def _security_repository():
+    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1":
+        client = current_app.extensions.get("d1_gateway_client")
+        if client is not None:
+            return D1SecurityRepository(client)
+    return SqlAlchemySecurityRepository()
 
 
 def normalize_username(value: str) -> tuple[str, str]:
@@ -90,23 +99,18 @@ def authenticate(username: str, password: str) -> User | None:
         _, key = normalize_imported_alias(username)
     except ValueError:
         return None
-    alias = db.session.scalar(select(LoginAlias).where(LoginAlias.alias_key == key))
-    if alias is None or not alias.user.is_active or alias.user.merged_into_user_id is not None:
+    found = account_repository().find_login(key)
+    if found is None:
         return None
-    user = alias.user
+    user, legacy_items = found
+    if not user.is_active or user.merged_into_user_id is not None:
+        return None
     if user.password_hash:
         try:
             if PASSWORD_HASH.verify(password, user.password_hash):
                 return user
         except Exception:  # An unknown/corrupt hash must behave like a failed login.
             return None
-    legacy_items = db.session.scalars(
-        select(LegacyCredential).where(
-            LegacyCredential.user_id == user.id,
-            LegacyCredential.login_alias_key == key,
-            LegacyCredential.is_active.is_(True),
-        )
-    ).all()
     if any(verify_legacy_password(item, password) for item in legacy_items):
         # A legacy password may predate the central 8-128 character policy.
         # It has already been verified against the imported hash, so migrate it
@@ -116,13 +120,22 @@ def authenticate(username: str, password: str) -> User | None:
             validate_password(password)
         except ValueError:
             user.must_change_password = True
-        user.password_hash = PASSWORD_HASH.hash(password)
-        for item in db.session.scalars(
-            select(LegacyCredential).where(LegacyCredential.user_id == user.id)
-        ):
-            db.session.delete(item)
-        audit("auth.legacy_password_upgraded", target=user)
-        db.session.commit()
+        upgraded_hash = PASSWORD_HASH.hash(password)
+        repository = _security_repository()
+        repository.upgrade_password(
+            user.id,
+            upgraded_hash,
+            user.must_change_password,
+            actor_user_id=None,
+            ip_address=request.remote_addr or "",
+        )
+        user.password_hash = upgraded_hash
+        if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") != "d1":
+            audit("auth.legacy_password_upgraded", target=user)
+        # SQLite commits the unit of work here. D1 already committed its batch;
+        # its session facade must not be treated as a transaction boundary.
+        if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") != "d1":
+            db.session.commit()
         return user
     return None
 
@@ -138,24 +151,44 @@ def create_web_session(user: User) -> tuple[WebSession, str]:
         token_hash=token_digest(raw_token),
         user_id=user.id,
         csrf_token=secrets.token_urlsafe(32),
+        auth_time=int(now.timestamp()),
+        created_at=now,
+        last_seen_at=now,
         idle_expires_at=now + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]),
         absolute_expires_at=now + timedelta(seconds=current_app.config["SESSION_ABSOLUTE_SECONDS"]),
     )
-    db.session.add(item)
-    db.session.flush()
+    repository = _security_repository()
+    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1":
+        item = repository.create_web_session({
+            "token_hash": item.token_hash, "user_id": item.user_id, "csrf_token": item.csrf_token,
+            "auth_time": item.auth_time, "created_at": item.created_at, "last_seen_at": item.last_seen_at,
+            "idle_expires_at": item.idle_expires_at, "absolute_expires_at": item.absolute_expires_at,
+        })
+    else:
+        db.session.add(item)
+        db.session.flush()
     return item, raw_token
 
 
 def revoke_user_sessions(user_id: int) -> None:
     now = utc_now()
-    for item in db.session.scalars(
-        select(WebSession).where(WebSession.user_id == user_id, WebSession.revoked_at.is_(None))
-    ):
-        item.revoked_at = now
+    _security_repository().revoke_sessions(user_id, now)
+
+
+def revoke_session(sid: str) -> None:
+    _security_repository().revoke_session(sid, utc_now())
+
+
+def revoke_user_access(user_id: int) -> None:
+    """Revoke all browser and OAuth access in one repository operation."""
+    _security_repository().revoke_access(user_id, utc_now())
 
 
 def revoke_user_oauth_tokens(user_id: int) -> None:
     now = int(utc_now().timestamp())
+    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1":
+        _security_repository().revoke_oauth_tokens(user_id, now)
+        return
     for item in db.session.scalars(
         select(OAuth2Token).where(
             OAuth2Token.user_id == user_id,
@@ -171,7 +204,8 @@ def load_request_user() -> None:
     raw = request.cookies.get(SESSION_COOKIE, "")
     if not raw:
         return
-    item = db.session.scalar(select(WebSession).where(WebSession.token_hash == token_digest(raw)))
+    repository = _security_repository()
+    item = repository.load_web_session(token_digest(raw), utc_now()) if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1" else db.session.scalar(select(WebSession).where(WebSession.token_hash == token_digest(raw)))
     now = utc_now()
     if (
         item is None
@@ -187,7 +221,10 @@ def load_request_user() -> None:
         now + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]),
         item.absolute_expires_at,
     )
-    db.session.commit()
+    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1":
+        repository.refresh_web_session(item.sid, item.last_seen_at, item.idle_expires_at)
+    else:
+        db.session.commit()
     g.auth_session = item
     g.current_user = item.user
 
@@ -247,37 +284,30 @@ def rate_limited(
     failures_only: bool = False,
 ) -> bool:
     cutoff = utc_now() - timedelta(seconds=seconds)
-    query = select(func.count(RateLimitEvent.id)).where(
-        RateLimitEvent.action == action,
-        RateLimitEvent.subject == subject,
-        RateLimitEvent.created_at >= cutoff,
-    )
-    if failures_only:
-        query = query.where(RateLimitEvent.succeeded.is_(False))
-    count = db.session.scalar(query)
-    return int(count or 0) >= limit
+    return _security_repository().rate_count(action, subject, cutoff, failures_only) >= limit
 
 
 def record_rate_event(action: str, subject: str, succeeded: bool) -> None:
-    db.session.add(RateLimitEvent(action=action, subject=subject, succeeded=succeeded))
+    _security_repository().add_rate_event(action, subject, succeeded)
 
 
 def audit(action: str, *, target: User | None = None, details: dict | None = None) -> None:
     actor = getattr(g, "current_user", None)
-    db.session.add(
-        AuditLog(
-            actor_user_id=actor.id if actor else None,
-            target_user_id=target.id if target else None,
-            action=action,
-            ip_address=client_ip() if request else "",
-            details_json=json.dumps(details or {}, ensure_ascii=False, separators=(",", ":")),
-        )
+    _security_repository().add_audit(
+        actor.id if actor else None,
+        target.id if target else None,
+        action,
+        client_ip() if request else "",
+        details or {},
     )
 
 
 def cleanup_expired() -> None:
     now = utc_now()
     now_epoch = int(now.timestamp())
+    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
+        _security_repository().cleanup_expired(now)
+        return
     db.session.execute(
         delete(WebSession).where(
             (WebSession.absolute_expires_at <= now)

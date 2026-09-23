@@ -14,11 +14,9 @@ from authlib.oidc.core import UserInfo
 from authlib.oidc.core.grants import OpenIDCode
 from flask import current_app
 from joserfc.jwk import import_key
-from sqlalchemy import select
-
 from .avatars import avatar_url
-from .extensions import authorization, db
-from .models import AppMembership, AuthorizationCode, OAuth2Client, OAuth2Token, User, utc_now
+from .extensions import authorization
+from .oauth_repository import oauth_repository
 from .security import token_digest
 
 _SIGNING_KEY_CACHE_MAX_ENTRIES = 8
@@ -84,38 +82,33 @@ class AuthorizationCodeGrantImpl(AuthorizationCodeGrant):
     TOKEN_ENDPOINT_AUTH_METHODS = ["client_secret_basic"]
 
     def save_authorization_code(self, code, request):
-        item = AuthorizationCode(
-            code=token_digest(code),
-            client_id=request.client.client_id,
-            redirect_uri=request.payload.redirect_uri or "",
-            response_type=request.payload.response_type or "code",
-            scope=request.scope,
-            user_id=request.user.id,
-            nonce=request.payload.data.get("nonce"),
-            auth_time=getattr(request.user, "_auth_time", int(time.time())),
-            issued_at=int(time.time()),
-            code_challenge=request.payload.data.get("code_challenge"),
-            code_challenge_method=request.payload.data.get("code_challenge_method"),
-            sid=getattr(request.user, "_sid", ""),
+        oauth_repository().save_authorization_code(
+            {
+                "code": token_digest(code),
+                "client_id": request.client.client_id,
+                "redirect_uri": request.payload.redirect_uri or "",
+                "response_type": request.payload.response_type or "code",
+                "scope": request.scope,
+                "user_id": request.user.id,
+                "nonce": request.payload.data.get("nonce"),
+                "auth_time": getattr(request.user, "_auth_time", int(time.time())),
+                "issued_at": int(time.time()),
+                "code_challenge": request.payload.data.get("code_challenge"),
+                "code_challenge_method": request.payload.data.get("code_challenge_method"),
+                "sid": getattr(request.user, "_sid", ""),
+            }
         )
-        db.session.add(item)
-        db.session.commit()
 
     def query_authorization_code(self, code, client):
-        return db.session.scalar(
-            select(AuthorizationCode).where(
-                AuthorizationCode.code == token_digest(code),
-                AuthorizationCode.client_id == client.client_id,
-                AuthorizationCode.issued_at >= int(time.time()) - 300,
-            )
+        return oauth_repository().query_authorization_code(
+            token_digest(code), client.client_id
         )
 
     def delete_authorization_code(self, authorization_code):
-        db.session.delete(authorization_code)
-        db.session.commit()
+        oauth_repository().delete_authorization_code(authorization_code)
 
     def authenticate_user(self, authorization_code):
-        return db.session.get(User, authorization_code.user_id)
+        return oauth_repository().get_user(authorization_code.user_id)
 
 
 class OpenIDCodeImpl(OpenIDCode):
@@ -137,15 +130,7 @@ class OpenIDCodeImpl(OpenIDCode):
         return claims
 
     def exists_nonce(self, nonce, request):
-        return (
-            db.session.scalar(
-                select(AuthorizationCode.id).where(
-                    AuthorizationCode.client_id == request.payload.client_id,
-                    AuthorizationCode.nonce == nonce,
-                )
-            )
-            is not None
-        )
+        return oauth_repository().nonce_exists(request.payload.client_id, nonce)
 
     def generate_user_info(self, user, scope):
         return UserInfo(
@@ -160,13 +145,10 @@ class RevocationEndpointImpl(RevocationEndpoint):
     CLIENT_AUTH_METHODS = ["client_secret_basic"]
 
     def query_token(self, token_string, token_type_hint):
-        return db.session.scalar(
-            select(OAuth2Token).where(OAuth2Token.access_token == token_digest(token_string))
-        )
+        return oauth_repository().query_token(token_digest(token_string))
 
     def revoke_token(self, token, request):
-        token.access_token_revoked_at = int(time.time())
-        db.session.commit()
+        oauth_repository().revoke_token(token)
 
 
 from authlib.oauth2.rfc6750 import BearerTokenValidator  # noqa: E402
@@ -174,9 +156,7 @@ from authlib.oauth2.rfc6750 import BearerTokenValidator  # noqa: E402
 
 class DatabaseBearerTokenValidator(BearerTokenValidator):
     def authenticate_token(self, token_string):
-        return db.session.scalar(
-            select(OAuth2Token).where(OAuth2Token.access_token == token_digest(token_string))
-        )
+        return oauth_repository().query_token(token_digest(token_string))
 
 
 require_oauth = ResourceProtector()
@@ -184,41 +164,29 @@ require_oauth.register_token_validator(DatabaseBearerTokenValidator())
 
 
 def query_client(client_id: str):
-    return db.session.scalar(
-        select(OAuth2Client).where(
-            OAuth2Client.client_id == client_id,
-            OAuth2Client.is_active.is_(True),
-        )
-    )
+    return oauth_repository().query_client(client_id)
 
 
 def save_token(token: dict, request) -> None:
     access_token = token["access_token"]
-    item = OAuth2Token(
-        client_id=request.client.client_id,
-        user_id=request.user.id,
-        sid=getattr(request.authorization_code, "sid", ""),
-        token_type=token.get("token_type", "Bearer"),
-        access_token=token_digest(access_token),
-        refresh_token=None,
-        scope=token.get("scope", ""),
-        issued_at=token.get("issued_at", int(time.time())),
-        expires_in=token.get("expires_in", current_app.config["OAUTH_TOKEN_EXPIRES_SECONDS"]),
+    oauth_repository().save_token_and_consume_code(
+        {
+            "client_id": request.client.client_id,
+            "user_id": request.user.id,
+            "sid": getattr(request.authorization_code, "sid", ""),
+            "token_type": token.get("token_type", "Bearer"),
+            "access_token": token_digest(access_token),
+            "refresh_token": None,
+            "scope": token.get("scope", ""),
+            "issued_at": token.get("issued_at", int(time.time())),
+            "access_token_revoked_at": 0,
+            "refresh_token_revoked_at": 0,
+            "expires_in": token.get(
+                "expires_in", current_app.config["OAUTH_TOKEN_EXPIRES_SECONDS"]
+            ),
+        },
+        request.authorization_code,
     )
-    db.session.add(item)
-    membership = db.session.scalar(
-        select(AppMembership).where(
-            AppMembership.user_id == request.user.id,
-            AppMembership.client_id == request.client.client_id,
-        )
-    )
-    if membership:
-        membership.last_authorized_at = utc_now()
-    else:
-        db.session.add(AppMembership(user_id=request.user.id, client_id=request.client.client_id))
-    # AuthorizationCodeGrant deletes the code immediately afterwards. Keep the
-    # token, membership update and code deletion in that single transaction.
-    db.session.flush()
 
 
 def init_oauth(app) -> None:
