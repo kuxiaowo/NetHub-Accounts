@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from abc import ABC, abstractmethod
 from typing import Any
@@ -21,6 +22,9 @@ def _model(model_type, row: dict[str, Any] | None):
         return None
     item = model_type()
     for key, value in row.items():
+        if model_type is OAuth2Client and key == "client_metadata":
+            item.set_client_metadata(json.loads(value or "{}"))
+            continue
         if hasattr(model_type, key):
             if key in {"is_active", "is_system_admin", "must_change_password"}:
                 value = _as_bool(value)

@@ -66,6 +66,7 @@ class D1GatewayClient:
             method="POST",
             headers={
                 "Content-Type": "application/json",
+                "User-Agent": "NetHub-D1-Client/1.0",
                 "X-DB-Timestamp": timestamp,
                 "X-DB-Request-ID": payload["requestId"],
                 "X-DB-Signature": signature,

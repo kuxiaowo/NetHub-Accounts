@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime, timedelta
 
 from app.account_repository import D1AccountRepository
@@ -91,3 +92,37 @@ def test_d1_logout_all_is_one_batch_with_audit():
     assert client.statements[0].sql.startswith("UPDATE web_sessions SET revoked_at")
     assert client.statements[1].sql.startswith("UPDATE oauth2_tokens")
     assert "auth.logout_all" in client.statements[2].params
+
+
+def test_d1_account_details_reads_client_name_from_metadata():
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.executescript(
+        """
+        CREATE TABLE oauth2_clients (
+            id INTEGER, client_id TEXT, client_metadata TEXT, is_active INTEGER
+        );
+        CREATE TABLE user_app_memberships (
+            id INTEGER, user_id INTEGER, client_id TEXT,
+            first_authorized_at TEXT, last_authorized_at TEXT
+        );
+        CREATE TABLE login_aliases (
+            id INTEGER, user_id INTEGER, alias TEXT, alias_key TEXT,
+            source TEXT, created_at TEXT, updated_at TEXT
+        );
+        INSERT INTO oauth2_clients VALUES (1, 'todo', '{"client_name":"Todo List"}', 1);
+        INSERT INTO user_app_memberships VALUES (1, 7, 'todo', '2026-01-01', '2026-01-02');
+        """
+    )
+
+    class SQLiteGateway:
+        def execute(self, sql, params=()):
+            return {"rows": [dict(row) for row in connection.execute(sql, params).fetchall()]}
+
+    memberships, aliases = D1AccountRepository(SQLiteGateway()).account_details(7)
+    assert len(memberships) == 1
+    assert memberships[0][1].client_name == "Todo List"
+    assert aliases == []
+    clients, linked = D1AccountRepository(SQLiteGateway()).home_data(7)
+    assert clients[0].client_name == "Todo List"
+    assert linked == {"todo"}

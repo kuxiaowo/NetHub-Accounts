@@ -31,6 +31,7 @@ from .avatars import (
     staged_avatar_upload,
     store_avatar,
 )
+from .avatar_gateway import AvatarGatewayError
 from .account_repository import AccountConflictError, account_repository
 from .admin_repository import admin_repository
 from .backchannel import deliver_pending_jobs, queue_logout
@@ -458,20 +459,30 @@ def account_avatar_upload():
             g.current_user.avatar_updated_at = utc_now()
             audit("account.avatar_updated", target=g.current_user)
             db.session.commit()
-    except AvatarError as exc:
+    except (AvatarError, AvatarGatewayError) as exc:
         if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "d1":
             db.session.rollback()
         if new_filename:
-            delete_avatar_file(g.current_user, new_filename)
-        flash(str(exc), "error")
+            try:
+                delete_avatar_file(g.current_user, new_filename)
+            except AvatarGatewayError:
+                current_app.logger.exception("Could not remove avatar after failed update")
+        message = str(exc) if isinstance(exc, AvatarError) else "头像存储服务暂不可用，请稍后重试。"
+        flash(message, "error")
         return redirect(url_for("web.account"))
     except Exception:
         if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "d1":
             db.session.rollback()
         if new_filename:
-            delete_avatar_file(g.current_user, new_filename)
+            try:
+                delete_avatar_file(g.current_user, new_filename)
+            except AvatarGatewayError:
+                current_app.logger.exception("Could not remove avatar after failed update")
         raise
-    delete_avatar_file(g.current_user, old_filename)
+    try:
+        delete_avatar_file(g.current_user, old_filename)
+    except AvatarGatewayError:
+        current_app.logger.exception("Could not remove replaced avatar")
     flash("头像已更新。", "success")
     return redirect(url_for("web.account"))
 
@@ -494,7 +505,10 @@ def account_avatar_delete():
         g.current_user.avatar_updated_at = utc_now()
         audit("account.avatar_deleted", target=g.current_user)
         db.session.commit()
-    delete_avatar_file(g.current_user, old_filename)
+    try:
+        delete_avatar_file(g.current_user, old_filename)
+    except AvatarGatewayError:
+        current_app.logger.exception("Could not remove deleted avatar")
     flash("头像已移除。", "success")
     return redirect(url_for("web.account"))
 

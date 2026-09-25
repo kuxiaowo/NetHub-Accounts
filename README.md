@@ -132,6 +132,24 @@ python -m app.cli avatar-migration-apply --plan migration-output/avatar-plan.jso
 冲突固定选择 Wiki 图片，其次 TodoList 图片和文字头像颜色。所有图片都由 Accounts
 重新解码压缩；重复执行不会覆盖用户已经在 Accounts 主动设置或删除的头像。
 
+## 头像 R2 存储
+
+生产环境将 `AVATAR_STORAGE_BACKEND=r2`，并为 Accounts 设置
+`AVATAR_R2_GATEWAY_URL=https://wiki-media.nethub.wiki` 和与 Wiki 媒体 Worker
+`ACCOUNTS_AVATAR_HMAC_SECRET` 相同的 `AVATAR_R2_HMAC_SECRET`。浏览器完成裁切并点击保存后，Accounts
+验证图片、压缩成 WebP，再通过签名请求写入 R2。公开头像地址仍为
+`/avatars/<用户 sub>`，有头像时重定向到头像 Worker。
+
+若原服务已有 `data/uploads/avatars/`，切换应用前先复制目录备份，再执行：
+
+```bash
+python -m app.avatar_r2_migration --source-dir data/uploads/avatars
+python -m app.avatar_r2_migration --source-dir data/uploads/avatars --apply
+```
+
+迁移保留原文件名，核对 R2 对象大小和 SHA-256；若目标对象不同则报错，不覆盖。
+原目录不会自动删除。完成搬迁并核对线上头像后再切换应用。
+
 ## 备份与恢复
 
 升级或切换前停止账号服务，然后复制以下文件：

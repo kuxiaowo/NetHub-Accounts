@@ -60,6 +60,10 @@ class Settings:
     avatar_size_px: int
     avatar_max_stored_bytes: int
     avatar_webp_quality: int
+    avatar_storage_backend: str
+    avatar_r2_gateway_url: str
+    avatar_r2_hmac_secret: str
+    avatar_r2_timeout: float
 
     @classmethod
     def from_env(cls, *, testing: bool = False) -> Settings:
@@ -101,6 +105,14 @@ class Settings:
             avatar_size_px=_int("AVATAR_SIZE_PX", 512, 64),
             avatar_max_stored_bytes=_int("AVATAR_MAX_STORED_KB", 256, 32) * 1024,
             avatar_webp_quality=_int("AVATAR_WEBP_QUALITY", 85, 40),
+            avatar_storage_backend=(
+                "local" if testing else os.getenv("AVATAR_STORAGE_BACKEND", "r2").strip().casefold()
+            ),
+            avatar_r2_gateway_url=os.getenv(
+                "AVATAR_R2_GATEWAY_URL", "https://wiki-media.nethub.wiki"
+            ).strip().rstrip("/"),
+            avatar_r2_hmac_secret=os.getenv("AVATAR_R2_HMAC_SECRET", "").strip(),
+            avatar_r2_timeout=float(os.getenv("AVATAR_R2_TIMEOUT", "10")),
         )
         if testing:
             return settings
@@ -114,6 +126,18 @@ class Settings:
             not settings.d1_gateway_url or not settings.d1_gateway_secret
         ):
             raise RuntimeError("D1 backend requires ACCOUNTS_D1_GATEWAY_URL and ACCOUNTS_D1_GATEWAY_SECRET")
+        if settings.avatar_storage_backend not in {"local", "r2"}:
+            raise RuntimeError("AVATAR_STORAGE_BACKEND must be local or r2")
+        if settings.avatar_storage_backend == "r2" and (
+            not settings.avatar_r2_gateway_url.startswith("https://")
+            or len(settings.avatar_r2_hmac_secret.encode("utf-8")) < 32
+        ):
+            raise RuntimeError(
+                "R2 avatar storage requires HTTPS AVATAR_R2_GATEWAY_URL "
+                "and a 32-byte AVATAR_R2_HMAC_SECRET"
+            )
+        if settings.avatar_r2_timeout <= 0:
+            raise RuntimeError("AVATAR_R2_TIMEOUT must be positive")
         if len(settings.secret_key.encode("utf-8")) < 32:
             raise RuntimeError("ACCOUNTS_SECRET_KEY must contain at least 32 bytes")
         if not settings.signing_key_path.is_file():

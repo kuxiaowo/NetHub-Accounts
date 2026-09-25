@@ -8,6 +8,8 @@ import pytest
 from PIL import Image
 
 from app import avatars
+from app.avatar_gateway import AvatarGatewayError
+from app.avatar_r2_migration import migrate
 from app.extensions import db
 from app.models import User
 from tests.conftest import create_user, csrf_from
@@ -251,3 +253,180 @@ def test_account_page_exposes_interactive_circle_cropper(app, client):
     assert b"reader.readAsDataURL(file)" in script.data
     assert b"URL.createObjectURL" not in script.data
     assert b"HTMLFormElement.prototype.submit.call(form)" in script.data
+
+
+def test_r2_avatar_upload_redirect_replacement_and_delete(app, client):
+    class FakeGateway:
+        def __init__(self):
+            self.objects = {}
+            self.deleted = []
+
+        def put(self, key, data):
+            assert key not in self.objects
+            self.objects[key] = data
+
+        def public_url(self, key):
+            return f"https://wiki-media.nethub.wiki/accounts/media/{key}"
+
+        def delete(self, key):
+            self.deleted.append(key)
+            self.objects.pop(key, None)
+
+    gateway = FakeGateway()
+    app.config["AVATAR_STORAGE_BACKEND"] = "r2"
+    app.extensions["avatar_gateway_client"] = gateway
+    with app.app_context():
+        user = create_user()
+        subject = user.sub
+        user_id = user.id
+    login(client)
+
+    def upload(color):
+        page = client.get("/account")
+        return client.post(
+            "/account/avatar",
+            data={
+                "csrf_token": csrf_from(page),
+                "avatar": (io.BytesIO(image_bytes(color=color)), "avatar.png"),
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert upload((200, 20, 20, 255)).status_code == 302
+    first_key = next(iter(gateway.objects))
+    assert first_key.startswith(f"avatars/{subject}/")
+    assert not app.config["AVATAR_UPLOAD_DIR"].exists()
+    with Image.open(io.BytesIO(gateway.objects[first_key])) as image:
+        assert image.format == "WEBP"
+        assert image.size == (512, 512)
+    response = client.get(f"/avatars/{subject}")
+    assert response.status_code == 302
+    assert response.location == gateway.public_url(first_key)
+    assert response.headers["Cache-Control"] == "public, no-cache"
+
+    assert upload((20, 20, 200, 255)).status_code == 302
+    assert first_key in gateway.deleted
+    assert len(gateway.objects) == 1
+    second_key = next(iter(gateway.objects))
+    with app.app_context():
+        assert db.session.get(User, user_id).avatar_file == second_key.rsplit("/", 1)[1]
+
+    page = client.get("/account")
+    assert client.post(
+        "/account/avatar/delete", data={"csrf_token": csrf_from(page)}
+    ).status_code == 302
+    assert second_key in gateway.deleted
+    assert gateway.objects == {}
+    with app.app_context():
+        assert db.session.get(User, user_id).avatar_file is None
+    assert client.get(f"/avatars/{subject}").content_type.startswith("image/svg+xml")
+
+
+def test_r2_failure_does_not_update_avatar_record(app, client):
+    class FailingGateway:
+        def put(self, _key, _data):
+            raise AvatarGatewayError("offline")
+
+        def delete(self, _key):
+            pass
+
+    app.config["AVATAR_STORAGE_BACKEND"] = "r2"
+    app.extensions["avatar_gateway_client"] = FailingGateway()
+    with app.app_context():
+        user = create_user()
+        user_id = user.id
+    login(client)
+    page = client.get("/account")
+    response = client.post(
+        "/account/avatar",
+        data={
+            "csrf_token": csrf_from(page),
+            "avatar": (io.BytesIO(image_bytes()), "avatar.png"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(User, user_id).avatar_file is None
+
+
+def test_r2_avatar_delete_keeps_object_when_database_commit_fails(app, client, monkeypatch):
+    class FakeGateway:
+        def __init__(self):
+            self.deleted = []
+
+        def delete(self, key):
+            self.deleted.append(key)
+
+    gateway = FakeGateway()
+    app.config["AVATAR_STORAGE_BACKEND"] = "r2"
+    app.extensions["avatar_gateway_client"] = gateway
+    with app.app_context():
+        user = create_user()
+        user.avatar_file = "a" * 24 + ".webp"
+        db.session.commit()
+    login(client)
+    page = client.get("/account")
+
+    def fail_commit():
+        raise RuntimeError("database unavailable")
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(db.session, "commit", fail_commit)
+        with pytest.raises(RuntimeError, match="database unavailable"):
+            client.post("/account/avatar/delete", data={"csrf_token": csrf_from(page)})
+
+    assert gateway.deleted == []
+
+
+def test_existing_local_avatar_migration_is_verified_and_repeatable(tmp_path):
+    class FakeGateway:
+        objects = {}
+
+        def head(self, key):
+            body = self.objects.get(key)
+            if body is None:
+                return None
+            import hashlib
+            return len(body), hashlib.sha256(body).hexdigest()
+
+        def put(self, key, body):
+            self.objects[key] = body
+
+    gateway = FakeGateway()
+    subject = str(uuid.uuid4())
+    avatar_dir = tmp_path / subject
+    avatar_dir.mkdir()
+    avatar_file = avatar_dir / ("a" * 24 + ".webp")
+    avatar_file.write_bytes(image_bytes("WEBP"))
+    assert migrate(tmp_path, gateway, apply=False) == {
+        "uploaded": 0, "already_present": 0, "pending": 1,
+    }
+    assert migrate(tmp_path, gateway, apply=True) == {
+        "uploaded": 1, "already_present": 0, "pending": 0,
+    }
+    assert migrate(tmp_path, gateway, apply=True) == {
+        "uploaded": 0, "already_present": 1, "pending": 0,
+    }
+
+
+def test_r2_name_collision_never_deletes_existing_object(app, tmp_path):
+    class CollisionGateway:
+        deleted = False
+
+        def put(self, _key, _body):
+            raise AvatarGatewayError("already exists", status=409)
+
+        def delete(self, _key):
+            self.deleted = True
+
+    gateway = CollisionGateway()
+    app.config["AVATAR_STORAGE_BACKEND"] = "r2"
+    app.extensions["avatar_gateway_client"] = gateway
+    source = tmp_path / "source.png"
+    source.write_bytes(image_bytes())
+    with app.app_context():
+        user = create_user()
+        with pytest.raises(AvatarGatewayError):
+            avatars.store_avatar(user, source)
+    assert not gateway.deleted

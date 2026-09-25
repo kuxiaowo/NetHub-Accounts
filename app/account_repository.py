@@ -153,7 +153,7 @@ class D1AccountRepository(AccountRepository):
         from .models import AppMembership, OAuth2Client
         rows = self.client.execute(
             "SELECT m.id,m.user_id,m.client_id,m.first_authorized_at,m.last_authorized_at,"
-            "c.client_name,c.is_active FROM user_app_memberships m JOIN oauth2_clients c "
+            "c.client_metadata,c.is_active FROM user_app_memberships m JOIN oauth2_clients c "
             "ON c.client_id=m.client_id WHERE m.user_id=? ORDER BY m.first_authorized_at",
             [user_id],
         ).get("rows") or []
@@ -164,7 +164,7 @@ class D1AccountRepository(AccountRepository):
                 setattr(membership, key, row.get(key))
             client = OAuth2Client()
             client.client_id = row.get("client_id")
-            client.client_name = row.get("client_name")
+            client.set_client_metadata(json.loads(row.get("client_metadata") or "{}"))
             client.is_active = bool(row.get("is_active"))
             memberships.append((membership, client))
         alias_rows = self.client.execute(
@@ -221,6 +221,9 @@ class D1AccountRepository(AccountRepository):
         for row in rows:
             item = OAuth2Client()
             for key, value in row.items():
+                if key == "client_metadata":
+                    item.set_client_metadata(json.loads(value or "{}"))
+                    continue
                 if key == "is_active" and value is not None:
                     value = bool(value)
                 if hasattr(OAuth2Client, key):

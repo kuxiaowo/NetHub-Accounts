@@ -67,3 +67,16 @@ def test_already_consumed_code_is_rejected_without_false_success():
         repository.save_token_and_consume_code(
             token_values(), SimpleNamespace(id=11, code="hashed-code")
         )
+
+
+def test_d1_oidc_client_reads_metadata():
+    class ClientGateway:
+        def execute(self, sql, params=()):
+            return {"rows": [{
+                "client_id": "todo",
+                "client_metadata": '{"client_name":"Todo List"}',
+                "is_active": 1,
+            }]}
+
+    client = D1OAuthRepository(ClientGateway()).query_client("todo")
+    assert client.client_name == "Todo List"

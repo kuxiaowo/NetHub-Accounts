@@ -9,7 +9,7 @@ import unicodedata
 from datetime import timedelta
 from urllib.parse import urlsplit
 
-from flask import current_app, g, request, session
+from flask import current_app, g, has_request_context, request, session
 from pwdlib import PasswordHash
 from sqlalchemy import delete, select
 from werkzeug.security import check_password_hash as check_werkzeug_password
@@ -127,7 +127,7 @@ def authenticate(username: str, password: str) -> User | None:
             upgraded_hash,
             user.must_change_password,
             actor_user_id=None,
-            ip_address=request.remote_addr or "",
+            ip_address=client_ip() if has_request_context() else "",
         )
         user.password_hash = upgraded_hash
         if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") != "d1":

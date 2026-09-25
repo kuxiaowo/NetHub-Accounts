@@ -12,9 +12,10 @@ from html import escape
 from pathlib import Path
 from typing import BinaryIO
 
-from flask import Response, current_app, request, send_file
+from flask import Response, current_app, redirect, request, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from .avatar_gateway import AvatarGatewayError
 from .models import User
 
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
@@ -113,9 +114,23 @@ def _decode_and_compress(source_path: Path) -> bytes:
 
 def store_avatar(user: User, source_path: Path) -> str:
     encoded = _decode_and_compress(source_path)
+    filename = f"{secrets.token_hex(12)}.webp"
+    if current_app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+        gateway = current_app.extensions["avatar_gateway_client"]
+        key = f"avatars/{user.sub}/{filename}"
+        try:
+            gateway.put(key, encoded)
+        except AvatarGatewayError as exc:
+            # A lost response can leave an uploaded object behind.
+            if exc.status is None or exc.status >= 500:
+                try:
+                    gateway.delete(key)
+                except AvatarGatewayError:
+                    current_app.logger.exception("Could not remove an uncertain avatar upload")
+            raise
+        return filename
     directory = _user_directory(user)
     directory.mkdir(parents=True, exist_ok=True)
-    filename = f"{secrets.token_hex(12)}.webp"
     target = directory / filename
     temporary = directory / f".{filename}.tmp"
     try:
@@ -129,6 +144,11 @@ def store_avatar(user: User, source_path: Path) -> str:
 
 def delete_avatar_file(user: User, filename: str | None) -> None:
     if not filename or not re.fullmatch(r"[0-9a-f]{24}\.webp", filename):
+        return
+    if current_app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+        current_app.extensions["avatar_gateway_client"].delete(
+            f"avatars/{user.sub}/{filename}"
+        )
         return
     directory = _user_directory(user)
     target = (directory / filename).resolve()
@@ -161,11 +181,17 @@ def avatar_response(user: User) -> Response:
     if request.if_none_match.contains(etag):
         response = Response(status=304)
     elif user.avatar_file:
-        path = _user_directory(user) / user.avatar_file
-        if path.is_file() and path.parent.resolve() == _user_directory(user).resolve():
-            response = send_file(path, mimetype="image/webp", conditional=False, etag=False)
+        if current_app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+            key = f"avatars/{user.sub}/{user.avatar_file}"
+            response = redirect(
+                current_app.extensions["avatar_gateway_client"].public_url(key), code=302
+            )
         else:
-            response = _fallback_response(user)
+            path = _user_directory(user) / user.avatar_file
+            if path.is_file() and path.parent.resolve() == _user_directory(user).resolve():
+                response = send_file(path, mimetype="image/webp", conditional=False, etag=False)
+            else:
+                response = _fallback_response(user)
     else:
         response = _fallback_response(user)
     response.set_etag(etag)

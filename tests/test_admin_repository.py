@@ -84,3 +84,19 @@ def test_d1_oauth_client_upsert_is_one_statement():
     assert mode == "single"
     assert "ON CONFLICT(client_id) DO UPDATE" in sql
     assert "todo" in params
+
+
+def test_d1_dashboard_reads_client_metadata():
+    client = FakeClient([
+        {"rows": [{"count": 0}]},
+        {"rows": []},
+        {"rows": [{
+            "id": 1,
+            "client_id": "todo",
+            "client_metadata": '{"client_name":"Todo List"}',
+            "is_active": 1,
+        }]},
+        {"rows": [{"count": 0}]},
+    ])
+    _users, clients, _memberships, *_rest = D1AdminRepository(client).dashboard(1, 50)
+    assert clients[0].client_name == "Todo List"

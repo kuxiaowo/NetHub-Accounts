@@ -19,6 +19,9 @@ class D1AdminRepository:
     def _client(row):
         item = OAuth2Client()
         for key, value in row.items():
+            if key == "client_metadata":
+                item.set_client_metadata(json.loads(value or "{}"))
+                continue
             if key in {"is_active"} and value is not None:
                 value = bool(value)
             if hasattr(OAuth2Client, key):

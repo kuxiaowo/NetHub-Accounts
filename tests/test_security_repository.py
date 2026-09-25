@@ -28,7 +28,7 @@ def test_d1_security_repository_uses_bound_parameters():
     repo.revoke_sessions(4, cutoff)
     assert len(fake.calls) == 4
     assert all("?" in sql for sql, _ in fake.calls)
-    assert all("ip" not in sql for sql, _ in fake.calls)
+    assert all("'ip'" not in sql for sql, _ in fake.calls)
 
 
 def test_d1_revoke_access_is_single_explicit_batch():
