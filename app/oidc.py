@@ -14,6 +14,7 @@ from authlib.oidc.core import UserInfo
 from authlib.oidc.core.grants import OpenIDCode
 from flask import current_app
 from joserfc.jwk import import_key
+
 from .avatars import avatar_url
 from .extensions import authorization
 from .oauth_repository import oauth_repository
@@ -100,9 +101,7 @@ class AuthorizationCodeGrantImpl(AuthorizationCodeGrant):
         )
 
     def query_authorization_code(self, code, client):
-        return oauth_repository().query_authorization_code(
-            token_digest(code), client.client_id
-        )
+        return oauth_repository().query_authorization_code(token_digest(code), client.client_id)
 
     def delete_authorization_code(self, authorization_code):
         oauth_repository().delete_authorization_code(authorization_code)
@@ -200,11 +199,7 @@ def init_oauth(app) -> None:
 
 def public_jwks() -> dict:
     key, key_id = get_signing_key()
-    return {
-        "keys": [
-            key.as_dict(private=False, use="sig", alg="RS256", kid=key_id)
-        ]
-    }
+    return {"keys": [key.as_dict(private=False, use="sig", alg="RS256", kid=key_id)]}
 
 
 def userinfo_payload() -> dict:

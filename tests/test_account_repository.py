@@ -50,7 +50,9 @@ def test_d1_registration_is_one_atomic_batch():
     assert len(client.statements) == 5
     assert client.statements[0].sql.startswith("INSERT INTO users")
     assert client.statements[-1].sql.startswith("INSERT INTO web_sessions")
-    assert all(not isinstance(value, datetime) for item in client.statements for value in item.params)
+    assert all(
+        not isinstance(value, datetime) for item in client.statements for value in item.params
+    )
 
 
 def test_d1_password_change_revokes_access_and_creates_replacement_session_in_one_batch():

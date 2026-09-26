@@ -34,7 +34,8 @@ def _data_order(db: sqlite3.Connection, tables: list[str]) -> list[str]:
     names = set(tables)
     dependencies = {
         table: {
-            str(row[2]) for row in db.execute(f"PRAGMA foreign_key_list({_name(table)})")
+            str(row[2])
+            for row in db.execute(f"PRAGMA foreign_key_list({_name(table)})")
             if str(row[2]) in names and str(row[2]) != table
         }
         for table in tables
@@ -79,7 +80,11 @@ def _data_sql(db: sqlite3.Connection, table: str):
 def _write(path: Path, statements: list[str]) -> dict:
     contents = "".join(statements).encode("utf-8")
     path.write_bytes(contents)
-    return {"file": path.name, "bytes": len(contents), "sha256": hashlib.sha256(contents).hexdigest()}
+    return {
+        "file": path.name,
+        "bytes": len(contents),
+        "sha256": hashlib.sha256(contents).hexdigest(),
+    }
 
 
 def _rows(db: sqlite3.Connection, table: str) -> list[tuple]:
@@ -104,14 +109,25 @@ def _verify(files: list[Path], source: sqlite3.Connection, tables: list[str]) ->
             copied = _rows(target, table)
             if original != copied:
                 raise ValueError(f"{table}: exported rows differ from the snapshot")
-        original_sequences = source.execute("SELECT name, seq FROM sqlite_sequence ORDER BY name").fetchall() if _has_sequence(source) else []
-        copied_sequences = target.execute("SELECT name, seq FROM sqlite_sequence ORDER BY name").fetchall() if _has_sequence(target) else []
+        original_sequences = (
+            source.execute("SELECT name, seq FROM sqlite_sequence ORDER BY name").fetchall()
+            if _has_sequence(source)
+            else []
+        )
+        copied_sequences = (
+            target.execute("SELECT name, seq FROM sqlite_sequence ORDER BY name").fetchall()
+            if _has_sequence(target)
+            else []
+        )
         if original_sequences != copied_sequences:
             raise ValueError("sqlite_sequence differs after replay")
 
 
 def _has_sequence(db: sqlite3.Connection) -> bool:
-    return db.execute("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'").fetchone() is not None
+    return (
+        db.execute("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'").fetchone()
+        is not None
+    )
 
 
 def export(source_path: Path, output_dir: Path, max_chunk_bytes: int) -> dict:
@@ -122,7 +138,9 @@ def export(source_path: Path, output_dir: Path, max_chunk_bytes: int) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temporary:
         snapshot_path = Path(temporary) / "snapshot.sqlite3"
-        with closing(sqlite3.connect(f"file:{source_path.resolve().as_posix()}?mode=ro", uri=True)) as live:
+        with closing(
+            sqlite3.connect(f"file:{source_path.resolve().as_posix()}?mode=ro", uri=True)
+        ) as live:
             with closing(sqlite3.connect(snapshot_path)) as backup:
                 live.backup(backup)
         with closing(sqlite3.connect(snapshot_path)) as db:
@@ -164,10 +182,16 @@ def export(source_path: Path, output_dir: Path, max_chunk_bytes: int) -> dict:
                 number += 1
             if _has_sequence(db):
                 sequence = []
-                for table, value in db.execute("SELECT name, seq FROM sqlite_sequence ORDER BY name"):
+                for table, value in db.execute(
+                    "SELECT name, seq FROM sqlite_sequence ORDER BY name"
+                ):
                     table_literal = db.execute("SELECT quote(?)", (table,)).fetchone()[0]
-                    sequence.append(f"UPDATE sqlite_sequence SET seq={int(value)} WHERE name={table_literal};\n")
-                    sequence.append(f"INSERT INTO sqlite_sequence(name,seq) SELECT {table_literal},{int(value)} WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name={table_literal});\n")
+                    sequence.append(
+                        f"UPDATE sqlite_sequence SET seq={int(value)} WHERE name={table_literal};\n"
+                    )
+                    sequence.append(
+                        f"INSERT INTO sqlite_sequence(name,seq) SELECT {table_literal},{int(value)} WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name={table_literal});\n"
+                    )
                 if sequence:
                     add(f"{number:03d}-sequence.sql", sequence)
                     number += 1
@@ -177,7 +201,10 @@ def export(source_path: Path, output_dir: Path, max_chunk_bytes: int) -> dict:
                 "ORDER BY CASE type WHEN 'index' THEN 0 WHEN 'view' THEN 1 ELSE 2 END, name"
             ).fetchall()
             if other:
-                add(f"{number:03d}-objects.sql", [str(sql).rstrip(";\n") + ";\n" for _, _, sql in other])
+                add(
+                    f"{number:03d}-objects.sql",
+                    [str(sql).rstrip(";\n") + ";\n" for _, _, sql in other],
+                )
             _verify(files, db, names)
             manifest = {
                 "source": str(source_path.resolve()),
@@ -186,11 +213,15 @@ def export(source_path: Path, output_dir: Path, max_chunk_bytes: int) -> dict:
                 "sequences": {
                     str(name): int(value)
                     for name, value in db.execute("SELECT name, seq FROM sqlite_sequence")
-                } if _has_sequence(db) else {},
+                }
+                if _has_sequence(db)
+                else {},
                 "files": entries,
                 "require_empty_destination": True,
             }
-            (output_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            (output_dir / "manifest.json").write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
             return manifest
 
 

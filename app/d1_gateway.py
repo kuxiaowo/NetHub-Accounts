@@ -12,11 +12,12 @@ import hashlib
 import hmac
 import json
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 
 class D1GatewayError(RuntimeError):
@@ -43,7 +44,7 @@ class D1GatewayClient:
         self.timeout = timeout
 
     def execute(self, sql: str, params: Sequence[Any] = ()) -> dict[str, Any]:
-        return self._request("single", [Statement(sql, params)]) ["results"][0]
+        return self._request("single", [Statement(sql, params)])["results"][0]
 
     def batch(self, statements: Sequence[Statement]) -> list[dict[str, Any]]:
         return self._request("batch", statements)["results"]
@@ -58,7 +59,7 @@ class D1GatewayClient:
         raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         timestamp = str(payload["timestamp"])
         digest = hashlib.sha256(raw).hexdigest()
-        message = f"v1\nPOST\n/internal/db\n{payload['requestId']}\n{timestamp}\n{digest}".encode("utf-8")
+        message = f"v1\nPOST\n/internal/db\n{payload['requestId']}\n{timestamp}\n{digest}".encode()
         signature = hmac.new(self.secret, message, hashlib.sha256).hexdigest()
         request = urllib.request.Request(
             self.url,

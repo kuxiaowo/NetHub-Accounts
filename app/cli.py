@@ -14,10 +14,10 @@ from alembic.config import Config
 from sqlalchemy import select
 
 from . import create_app
-from .avatar_migration import apply_avatar_plan, build_avatar_plan
-from .backchannel import deliver_pending_jobs
 from .account_repository import account_repository
 from .admin_repository import admin_repository
+from .avatar_migration import apply_avatar_plan, build_avatar_plan
+from .backchannel import deliver_pending_jobs
 from .config import PROJECT_ROOT
 from .extensions import db
 from .migration_tool import apply_plan, build_plan, load_sources, write_plan

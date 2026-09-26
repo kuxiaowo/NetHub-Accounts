@@ -9,9 +9,9 @@ import requests
 from flask import current_app
 from joserfc import jwt
 
+from .backchannel_repository import get_backchannel_repository
 from .models import BackchannelJob, User, utc_now
 from .oidc import get_signing_key
-from .backchannel_repository import get_backchannel_repository
 
 LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from functools import wraps
 import secrets
 from datetime import timedelta
+from functools import wraps
 from urllib.parse import urlsplit
 
 from authlib.oauth2 import OAuth2Error
@@ -23,6 +23,9 @@ from flask import (
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from .account_repository import AccountConflictError, account_repository
+from .admin_repository import admin_repository
+from .avatar_gateway import AvatarGatewayError
 from .avatars import (
     AvatarError,
     avatar_response,
@@ -31,9 +34,6 @@ from .avatars import (
     staged_avatar_upload,
     store_avatar,
 )
-from .avatar_gateway import AvatarGatewayError
-from .account_repository import AccountConflictError, account_repository
-from .admin_repository import admin_repository
 from .backchannel import deliver_pending_jobs, queue_logout
 from .extensions import authorization, db
 from .models import (
@@ -50,22 +50,22 @@ from .oidc import public_jwks, require_oauth, userinfo_payload
 from .security import (
     audit,
     authenticate,
-    client_ip,
     clear_session_cookie,
+    client_ip,
     create_web_session,
     csrf_token,
     hash_password,
     normalize_username,
     rate_limited,
     record_rate_event,
-    revoke_user_oauth_tokens,
-    revoke_user_access,
     revoke_session,
+    revoke_user_access,
+    revoke_user_oauth_tokens,
     revoke_user_sessions,
     safe_next,
     set_session_cookie,
-    validate_csrf,
     token_digest,
+    validate_csrf,
 )
 
 web = Blueprint("web", __name__)
@@ -192,7 +192,9 @@ def home():
         if g.current_user:
             memberships = set(
                 db.session.scalars(
-                    select(AppMembership.client_id).where(AppMembership.user_id == g.current_user.id)
+                    select(AppMembership.client_id).where(
+                        AppMembership.user_id == g.current_user.id
+                    )
                 ).all()
             )
     clients.sort(
@@ -246,16 +248,39 @@ def register():
         try:
             backend = current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite")
             if backend != "d1":
-                user = _create_user(request.form.get("username", ""), request.form.get("display_name", ""), password)
-                record_rate_event("register", subject, True); audit("auth.register", target=user)
-                session, raw_token = create_web_session(user); db.session.commit()
+                user = _create_user(
+                    request.form.get("username", ""), request.form.get("display_name", ""), password
+                )
+                record_rate_event("register", subject, True)
+                audit("auth.register", target=user)
+                session, raw_token = create_web_session(user)
+                db.session.commit()
             else:
                 username, username_key = normalize_username(request.form.get("username", ""))
                 display_name = request.form.get("display_name", "").strip()
-                if not display_name or len(display_name) > 80: raise ValueError("显示名称需要在 1-80 个字符之间")
-                now = utc_now(); raw_token = secrets.token_urlsafe(48)
-                session_values = {"sid": secrets.token_urlsafe(27)[:36], "token_hash": token_digest(raw_token), "csrf_token": secrets.token_urlsafe(32), "auth_time": int(now.timestamp()), "created_at": now, "last_seen_at": now, "idle_expires_at": now + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]), "absolute_expires_at": now + timedelta(seconds=current_app.config["SESSION_ABSOLUTE_SECONDS"])}
-                values = {"username": username, "username_key": username_key, "display_name": display_name, "password_hash": hash_password(password), "terms_accepted_at": now}
+                if not display_name or len(display_name) > 80:
+                    raise ValueError("显示名称需要在 1-80 个字符之间")
+                now = utc_now()
+                raw_token = secrets.token_urlsafe(48)
+                session_values = {
+                    "sid": secrets.token_urlsafe(27)[:36],
+                    "token_hash": token_digest(raw_token),
+                    "csrf_token": secrets.token_urlsafe(32),
+                    "auth_time": int(now.timestamp()),
+                    "created_at": now,
+                    "last_seen_at": now,
+                    "idle_expires_at": now
+                    + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]),
+                    "absolute_expires_at": now
+                    + timedelta(seconds=current_app.config["SESSION_ABSOLUTE_SECONDS"]),
+                }
+                values = {
+                    "username": username,
+                    "username_key": username_key,
+                    "display_name": display_name,
+                    "password_hash": hash_password(password),
+                    "terms_accepted_at": now,
+                }
                 account_repository().register(values, session_values, ip=subject)
         except AccountConflictError as exc:
             record_rate_event("register", subject, False)
@@ -384,8 +409,10 @@ def account():
                             "auth_time": int(now.timestamp()),
                             "created_at": now,
                             "last_seen_at": now,
-                            "idle_expires_at": now + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]),
-                            "absolute_expires_at": now + timedelta(seconds=current_app.config["SESSION_ABSOLUTE_SECONDS"]),
+                            "idle_expires_at": now
+                            + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]),
+                            "absolute_expires_at": now
+                            + timedelta(seconds=current_app.config["SESSION_ABSOLUTE_SECONDS"]),
                         }
                         if not account_repository().change_password(
                             g.current_user.id, password_hash, session_values, ip=client_ip()
@@ -428,7 +455,9 @@ def account():
             .order_by(AppMembership.first_authorized_at)
         ).all()
         aliases = db.session.scalars(
-            select(LoginAlias).where(LoginAlias.user_id == g.current_user.id).order_by(LoginAlias.id)
+            select(LoginAlias)
+            .where(LoginAlias.user_id == g.current_user.id)
+            .order_by(LoginAlias.id)
         ).all()
     return render_template("account.html", memberships=memberships, aliases=aliases)
 
@@ -523,9 +552,7 @@ def account_avatar_color():
         flash("请选择有效的头像背景色。", "error")
         return redirect(url_for("web.account"))
     if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
-        if not account_repository().update_avatar_color(
-            g.current_user.id, color, ip=client_ip()
-        ):
+        if not account_repository().update_avatar_color(g.current_user.id, color, ip=client_ip()):
             abort(409, "账号已被删除")
     else:
         g.current_user.avatar_color = color
@@ -571,7 +598,9 @@ def admin():
             select(User).order_by(User.id).offset((page - 1) * per_page).limit(per_page)
         ).all()
         clients = db.session.scalars(select(OAuth2Client).order_by(OAuth2Client.id)).all()
-        client_names = {client.client_id: client.client_name or client.client_id for client in clients}
+        client_names = {
+            client.client_id: client.client_name or client.client_id for client in clients
+        }
         membership_map: dict[int, list[str]] = {}
         user_ids = [user.id for user in users]
         if user_ids:
@@ -581,7 +610,9 @@ def admin():
                 .order_by(AppMembership.user_id, AppMembership.client_id)
             )
             for user_id, client_id in memberships:
-                membership_map.setdefault(user_id, []).append(client_names.get(client_id, client_id))
+                membership_map.setdefault(user_id, []).append(
+                    client_names.get(client_id, client_id)
+                )
         failed_jobs = db.session.scalar(
             select(func.count(BackchannelJob.id)).where(BackchannelJob.status == "failed")
         )
@@ -635,7 +666,8 @@ def admin_create_user():
         if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "d1":
             db.session.rollback()
         flash(
-            "无法创建账号：" + (str(exc) if isinstance(exc, (ValueError, AccountConflictError)) else "用户名已存在"),
+            "无法创建账号："
+            + (str(exc) if isinstance(exc, (ValueError, AccountConflictError)) else "用户名已存在"),
             "error",
         )
     return redirect(url_for("web.admin"))
@@ -656,7 +688,9 @@ def admin_toggle_user(user_id: int):
         if target.is_system_admin and target.is_active and repository.active_admin_count() <= 1:
             abort(409, "不能停用最后一个系统管理员")
         new_active = not bool(target.is_active)
-        if not repository.set_user_active(target.id, bool(target.is_active), new_active, g.current_user.id, client_ip()):
+        if not repository.set_user_active(
+            target.id, bool(target.is_active), new_active, g.current_user.id, client_ip()
+        ):
             abort(409, "账号状态已被其他管理员修改")
         target.is_active = new_active
         if not new_active:
@@ -698,7 +732,9 @@ def admin_reset_password(user_id: int):
         except ValueError as exc:
             flash(str(exc), "error")
             return redirect(url_for("web.admin")), 400
-        if not account_repository().reset_password(target.id, password_hash, g.current_user.id, client_ip()):
+        if not account_repository().reset_password(
+            target.id, password_hash, g.current_user.id, client_ip()
+        ):
             abort(409, "账号已被删除")
         queue_logout(target, "password_reset")
         flash("临时密码已设置，用户下次登录必须修改。", "success")

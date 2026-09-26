@@ -18,12 +18,29 @@ def _name(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
-def _run(wrangler: str, database: str, config: Path, location: str, option: str, value: str) -> list[dict]:
-    command = [wrangler, "d1", "execute", database, "--config", str(config), location,
-               option, value, "--json", "--yes"]
-    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+def _run(
+    wrangler: str, database: str, config: Path, location: str, option: str, value: str
+) -> list[dict]:
+    command = [
+        wrangler,
+        "d1",
+        "execute",
+        database,
+        "--config",
+        str(config),
+        location,
+        option,
+        value,
+        "--json",
+        "--yes",
+    ]
+    result = subprocess.run(
+        command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
+    )
     if result.returncode:
-        raise RuntimeError(f"Wrangler failed ({result.returncode}): {result.stdout}\n{result.stderr}")
+        raise RuntimeError(
+            f"Wrangler failed ({result.returncode}): {result.stdout}\n{result.stderr}"
+        )
     # Remote --file writes upload progress to stdout before its JSON result.
     # Accept only a complete JSON array at the end of that output.
     response = None
@@ -35,7 +52,7 @@ def _run(wrangler: str, database: str, config: Path, location: str, option: str,
             candidate, end = decoder.raw_decode(result.stdout[position:])
         except json.JSONDecodeError:
             continue
-        if not result.stdout[position + end:].strip():
+        if not result.stdout[position + end :].strip():
             response = candidate
             break
     if response is None:
@@ -52,7 +69,9 @@ def _query(wrangler: str, database: str, config: Path, location: str, sql: str) 
     return result[0].get("results") or []
 
 
-def apply(manifest_path: Path, database: str, config: Path, *, remote: bool, wrangler: str | None = None) -> None:
+def apply(
+    manifest_path: Path, database: str, config: Path, *, remote: bool, wrangler: str | None = None
+) -> None:
     wrangler = wrangler or shutil.which("wrangler")
     if not wrangler:
         raise RuntimeError("Wrangler CLI was not found")
@@ -69,12 +88,18 @@ def apply(manifest_path: Path, database: str, config: Path, *, remote: bool, wra
         if path.name != entry["file"] or path.suffix != ".sql":
             raise ValueError("unsafe SQL file in manifest")
         contents = path.read_bytes()
-        if len(contents) != entry["bytes"] or hashlib.sha256(contents).hexdigest() != entry["sha256"]:
+        if (
+            len(contents) != entry["bytes"]
+            or hashlib.sha256(contents).hexdigest() != entry["sha256"]
+        ):
             raise ValueError(f"SQL file changed: {path.name}")
         paths.append(path)
     location = "--remote" if remote else "--local"
     existing = _query(
-        wrangler, database, config, location,
+        wrangler,
+        database,
+        config,
+        location,
         "SELECT name FROM sqlite_master WHERE type='table' "
         "AND name NOT GLOB 'sqlite_*' AND name NOT GLOB '_cf_*' LIMIT 1",
     )
@@ -90,8 +115,15 @@ def apply(manifest_path: Path, database: str, config: Path, *, remote: bool, wra
     ]
     observed: list[dict] = []
     for offset in range(0, len(select_parts), 5):
-        observed.extend(_query(wrangler, database, config, location,
-                               " UNION ALL ".join(select_parts[offset:offset + 5])))
+        observed.extend(
+            _query(
+                wrangler,
+                database,
+                config,
+                location,
+                " UNION ALL ".join(select_parts[offset : offset + 5]),
+            )
+        )
     actual = {row["table_name"]: int(row["row_count"]) for row in observed}
     if actual != counts:
         raise RuntimeError(f"D1 row counts differ: expected {counts}, got {actual}")
@@ -103,19 +135,28 @@ def apply(manifest_path: Path, database: str, config: Path, *, remote: bool, wra
         raise RuntimeError(f"D1 quick_check failed: {check}")
     expected_sequences = manifest.get("sequences") or {}
     if expected_sequences:
-        sequence_rows = _query(wrangler, database, config, location,
-                               "SELECT name, seq FROM sqlite_sequence")
+        sequence_rows = _query(
+            wrangler, database, config, location, "SELECT name, seq FROM sqlite_sequence"
+        )
         sequences = {row["name"]: int(row["seq"]) for row in sequence_rows}
         if sequences != expected_sequences:
-            raise RuntimeError(f"D1 sequences differ: expected {expected_sequences}, got {sequences}")
-    print(json.dumps({"database": database, "tables": actual, "status": "verified"}, ensure_ascii=False))
+            raise RuntimeError(
+                f"D1 sequences differ: expected {expected_sequences}, got {sequences}"
+            )
+    print(
+        json.dumps(
+            {"database": database, "tables": actual, "status": "verified"}, ensure_ascii=False
+        )
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("database", help="Wrangler D1 database name or binding")
-    parser.add_argument("--config", required=True, type=Path, help="Wrangler config with D1 binding")
+    parser.add_argument(
+        "--config", required=True, type=Path, help="Wrangler config with D1 binding"
+    )
     parser.add_argument("--wrangler", help="path to Wrangler executable")
     location = parser.add_mutually_exclusive_group(required=True)
     location.add_argument("--remote", action="store_true")

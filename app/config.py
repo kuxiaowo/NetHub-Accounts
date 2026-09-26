@@ -67,9 +67,9 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, testing: bool = False) -> Settings:
-        database_backend = os.getenv(
-            "ACCOUNTS_DATABASE_BACKEND", "sqlite" if testing else "d1"
-        ).strip().casefold()
+        database_backend = (
+            os.getenv("ACCOUNTS_DATABASE_BACKEND", "sqlite" if testing else "d1").strip().casefold()
+        )
         raw_database = os.getenv("DATABASE_URL", "sqlite:///data/accounts.sqlite3")
         key_path = Path(os.getenv("OIDC_SIGNING_KEY_PATH", "data/oidc-rs256.pem"))
         if not key_path.is_absolute():
@@ -110,7 +110,9 @@ class Settings:
             ),
             avatar_r2_gateway_url=os.getenv(
                 "AVATAR_R2_GATEWAY_URL", "https://wiki-media.nethub.wiki"
-            ).strip().rstrip("/"),
+            )
+            .strip()
+            .rstrip("/"),
             avatar_r2_hmac_secret=os.getenv("AVATAR_R2_HMAC_SECRET", "").strip(),
             avatar_r2_timeout=float(os.getenv("AVATAR_R2_TIMEOUT", "10")),
         )
@@ -125,7 +127,9 @@ class Settings:
         if settings.database_backend == "d1" and (
             not settings.d1_gateway_url or not settings.d1_gateway_secret
         ):
-            raise RuntimeError("D1 backend requires ACCOUNTS_D1_GATEWAY_URL and ACCOUNTS_D1_GATEWAY_SECRET")
+            raise RuntimeError(
+                "D1 backend requires ACCOUNTS_D1_GATEWAY_URL and ACCOUNTS_D1_GATEWAY_SECRET"
+            )
         if settings.avatar_storage_backend not in {"local", "r2"}:
             raise RuntimeError("AVATAR_STORAGE_BACKEND must be local or r2")
         if settings.avatar_storage_backend == "r2" and (

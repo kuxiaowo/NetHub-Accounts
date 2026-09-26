@@ -112,9 +112,7 @@ class SQLiteOAuthRepository(OAuthRepository):
         token.access_token_revoked_at = int(time.time())
         db.session.commit()
 
-    def save_token_and_consume_code(
-        self, token_values: dict[str, Any], authorization_code
-    ) -> None:
+    def save_token_and_consume_code(self, token_values: dict[str, Any], authorization_code) -> None:
         db.session.add(OAuth2Token(**token_values))
         membership = db.session.scalar(
             select(AppMembership).where(
@@ -126,9 +124,7 @@ class SQLiteOAuthRepository(OAuthRepository):
             membership.last_authorized_at = utc_now()
         else:
             db.session.add(
-                AppMembership(
-                    user_id=token_values["user_id"], client_id=token_values["client_id"]
-                )
+                AppMembership(user_id=token_values["user_id"], client_id=token_values["client_id"])
             )
         # Authlib invokes delete_authorization_code immediately after save_token.
         # Keeping the transaction open makes all three writes commit together there.
@@ -165,8 +161,18 @@ class D1OAuthRepository(OAuthRepository):
 
     def save_authorization_code(self, values: dict[str, Any]) -> None:
         columns = [
-            "code", "client_id", "redirect_uri", "response_type", "scope", "user_id",
-            "nonce", "auth_time", "issued_at", "code_challenge", "code_challenge_method", "sid",
+            "code",
+            "client_id",
+            "redirect_uri",
+            "response_type",
+            "scope",
+            "user_id",
+            "nonce",
+            "auth_time",
+            "issued_at",
+            "code_challenge",
+            "code_challenge_method",
+            "sid",
         ]
         self.client.execute(
             f"INSERT INTO oauth2_authorization_codes ({', '.join(columns)}) "
@@ -228,15 +234,22 @@ class D1OAuthRepository(OAuthRepository):
         if result.get("meta", {}).get("changes", 0) not in {0, 1}:
             raise RuntimeError("unexpected token revoke result")
 
-    def save_token_and_consume_code(
-        self, token_values: dict[str, Any], authorization_code
-    ) -> None:
+    def save_token_and_consume_code(self, token_values: dict[str, Any], authorization_code) -> None:
         now = utc_now().isoformat(sep=" ")
         code_id = authorization_code.id
         code_digest = authorization_code.code
         token_columns = [
-            "client_id", "user_id", "sid", "token_type", "access_token", "refresh_token",
-            "scope", "issued_at", "access_token_revoked_at", "refresh_token_revoked_at", "expires_in",
+            "client_id",
+            "user_id",
+            "sid",
+            "token_type",
+            "access_token",
+            "refresh_token",
+            "scope",
+            "issued_at",
+            "access_token_revoked_at",
+            "refresh_token_revoked_at",
+            "expires_in",
         ]
         token_params = [token_values.get(column) for column in token_columns]
         token_sql = (
@@ -256,7 +269,14 @@ class D1OAuthRepository(OAuthRepository):
                 Statement(token_sql, [*token_params, code_id, code_digest]),
                 Statement(
                     membership_sql,
-                    [token_values["user_id"], token_values["client_id"], now, now, code_id, code_digest],
+                    [
+                        token_values["user_id"],
+                        token_values["client_id"],
+                        now,
+                        now,
+                        code_id,
+                        code_digest,
+                    ],
                 ),
                 Statement(
                     "DELETE FROM oauth2_authorization_codes WHERE id = ? AND code = ?",

@@ -9,3 +9,11 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# These D1 migration modules keep long SQL literals intact for review.
+"app/account_repository.py" = ["E501"]
+"app/admin_repository.py" = ["E501"]
+"app/backchannel_repository.py" = ["E501"]
+"app/oauth_repository.py" = ["E501"]
+"app/security_repository.py" = ["E501"]
+"scripts/export_sqlite_to_d1.py" = ["E501"]

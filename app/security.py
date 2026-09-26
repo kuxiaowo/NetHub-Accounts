@@ -14,12 +14,11 @@ from pwdlib import PasswordHash
 from sqlalchemy import delete, select
 from werkzeug.security import check_password_hash as check_werkzeug_password
 
+from .account_repository import account_repository
 from .extensions import db
 from .models import (
-    AuditLog,
     AuthorizationCode,
     LegacyCredential,
-    LoginAlias,
     OAuth2Token,
     RateLimitEvent,
     User,
@@ -27,7 +26,6 @@ from .models import (
     utc_now,
 )
 from .security_repository import D1SecurityRepository, SqlAlchemySecurityRepository
-from .account_repository import account_repository
 
 PASSWORD_HASH = PasswordHash.recommended()
 USERNAME_PATTERN = re.compile(r"^[\w.\-]{2,32}$", re.UNICODE)
@@ -159,11 +157,18 @@ def create_web_session(user: User) -> tuple[WebSession, str]:
     )
     repository = _security_repository()
     if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1":
-        item = repository.create_web_session({
-            "token_hash": item.token_hash, "user_id": item.user_id, "csrf_token": item.csrf_token,
-            "auth_time": item.auth_time, "created_at": item.created_at, "last_seen_at": item.last_seen_at,
-            "idle_expires_at": item.idle_expires_at, "absolute_expires_at": item.absolute_expires_at,
-        })
+        item = repository.create_web_session(
+            {
+                "token_hash": item.token_hash,
+                "user_id": item.user_id,
+                "csrf_token": item.csrf_token,
+                "auth_time": item.auth_time,
+                "created_at": item.created_at,
+                "last_seen_at": item.last_seen_at,
+                "idle_expires_at": item.idle_expires_at,
+                "absolute_expires_at": item.absolute_expires_at,
+            }
+        )
     else:
         db.session.add(item)
         db.session.flush()
@@ -205,7 +210,11 @@ def load_request_user() -> None:
     if not raw:
         return
     repository = _security_repository()
-    item = repository.load_web_session(token_digest(raw), utc_now()) if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1" else db.session.scalar(select(WebSession).where(WebSession.token_hash == token_digest(raw)))
+    item = (
+        repository.load_web_session(token_digest(raw), utc_now())
+        if current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite") == "d1"
+        else db.session.scalar(select(WebSession).where(WebSession.token_hash == token_digest(raw)))
+    )
     now = utc_now()
     if (
         item is None
