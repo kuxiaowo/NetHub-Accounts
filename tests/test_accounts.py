@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.extensions import db
 from app.models import (
@@ -284,6 +284,61 @@ def test_admin_can_create_disable_and_restore_account(app, client):
     with app.app_context():
         assert db.session.get(User, managed_id).is_active is True
     assert login(app.test_client(), "managed-user", "temporary-123").status_code == 302
+
+
+def test_admin_users_are_paginated_and_memberships_are_batch_loaded(app, client):
+    with app.app_context():
+        create_user("admin", admin=True)
+        users = []
+        for index in range(1, 106):
+            user = User(
+                username=f"user-{index:03d}",
+                username_key=f"user-{index:03d}",
+                display_name=f"User {index:03d}",
+                is_active=True,
+            )
+            db.session.add(user)
+            users.append(user)
+        db.session.flush()
+        db.session.add(oauth_client("todo"))
+        db.session.add_all(
+            [
+                AppMembership(user_id=users[50].id, client_id="todo"),
+                AppMembership(user_id=users[100].id, client_id="todo"),
+            ]
+        )
+        db.session.commit()
+        engine = db.engine
+
+    assert login(client, "admin").status_code == 302
+    statements = []
+
+    def capture_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture_statement)
+    try:
+        first = client.get("/admin")
+        second = client.get("/admin?page=2")
+        capped = client.get("/admin?per_page=999")
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_statement)
+
+    assert first.status_code == second.status_code == capped.status_code == 200
+    assert "User 049" in first.text
+    assert "User 050" not in first.text
+    assert "User 050" in second.text
+    assert "User 100" not in second.text
+    assert "User 099" in capped.text
+    assert "User 100" not in capped.text
+    membership_queries = [sql for sql in statements if "user_app_memberships" in sql]
+    user_page_queries = [
+        sql for sql in statements if "FROM users" in sql and "ORDER BY users.id" in sql
+    ]
+    assert len(membership_queries) == 3
+    assert all(" IN (" in sql for sql in membership_queries)
+    assert len(user_page_queries) == 3
+    assert all(" LIMIT " in sql and " OFFSET " in sql for sql in user_page_queries)
 
 
 def test_admin_can_permanently_delete_inactive_account(app, client):

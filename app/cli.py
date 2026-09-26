@@ -3,6 +3,7 @@ from __future__ import annotations
 import getpass
 import hashlib
 import json
+import os
 import secrets
 import time
 from pathlib import Path
@@ -13,6 +14,8 @@ from alembic.config import Config
 from sqlalchemy import select
 
 from . import create_app
+from .account_repository import account_repository
+from .admin_repository import admin_repository
 from .avatar_migration import apply_avatar_plan, build_avatar_plan
 from .backchannel import deliver_pending_jobs
 from .config import PROJECT_ROOT
@@ -28,6 +31,17 @@ def _alembic_config() -> Config:
     return config
 
 
+def _configured_backend() -> str:
+    return os.getenv("ACCOUNTS_DATABASE_BACKEND", "d1").strip().casefold()
+
+
+def _require_sqlite_command(name: str) -> None:
+    if _configured_backend() == "d1":
+        raise click.ClickException(
+            f"{name} is an offline SQLite-only command; it cannot run against D1"
+        )
+
+
 @click.group()
 def cli() -> None:
     """NetHub Accounts administration commands."""
@@ -35,6 +49,7 @@ def cli() -> None:
 
 @cli.command("db-upgrade")
 def db_upgrade() -> None:
+    _require_sqlite_command("db-upgrade")
     command.upgrade(_alembic_config(), "head")
     click.echo("database upgraded")
 
@@ -53,6 +68,24 @@ def bootstrap_admin(username: str, display_name: str) -> None:
     app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
     with app.app_context():
         normalized, key = normalize_username(username)
+        if app.config["ACCOUNTS_DATABASE_BACKEND"] == "d1":
+            if account_repository().active_admin_count():
+                raise click.ClickException("an active system administrator already exists")
+            user = admin_repository().create_user(
+                {
+                    "username": normalized,
+                    "username_key": key,
+                    "display_name": display_name,
+                    "password_hash": hash_password(password),
+                    "is_system_admin": True,
+                },
+                actor_id=None,
+                ip="",
+                must_change_password=False,
+                audit_action="admin.bootstrap_created",
+            )
+            click.echo(f"administrator created: {normalized} ({user.sub})")
+            return
         if db.session.scalar(
             select(User).where(User.is_system_admin.is_(True), User.is_active.is_(True))
         ):
@@ -107,6 +140,27 @@ def register_client(
     secret = secrets.token_urlsafe(48)
     app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
     with app.app_context():
+        metadata = {
+            "client_name": name,
+            "redirect_uris": list(redirect_uri),
+            "scope": "openid profile",
+            "grant_types": ["authorization_code"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": "client_secret_basic",
+            "id_token_signed_response_alg": "RS256",
+        }
+        if app.config["ACCOUNTS_DATABASE_BACKEND"] == "d1":
+            admin_repository().upsert_oauth_client(
+                client_id=client_id,
+                client_secret_hash="sha256$" + hashlib.sha256(secret.encode()).hexdigest(),
+                issued_at=int(time.time()),
+                launch_uri=launch_uri,
+                backchannel_logout_uri=backchannel_logout_uri,
+                metadata=metadata,
+            )
+            click.echo("Client secret (shown once):")
+            click.echo(secret)
+            return
         client = db.session.scalar(select(OAuth2Client).where(OAuth2Client.client_id == client_id))
         if client is None:
             client = OAuth2Client(client_id=client_id, client_id_issued_at=int(time.time()))
@@ -116,17 +170,7 @@ def register_client(
         client.launch_uri = launch_uri
         client.backchannel_logout_uri = backchannel_logout_uri
         client.is_active = True
-        client.set_client_metadata(
-            {
-                "client_name": name,
-                "redirect_uris": list(redirect_uri),
-                "scope": "openid profile",
-                "grant_types": ["authorization_code"],
-                "response_types": ["code"],
-                "token_endpoint_auth_method": "client_secret_basic",
-                "id_token_signed_response_alg": "RS256",
-            }
-        )
+        client.set_client_metadata(metadata)
         db.session.commit()
     click.echo("Client secret (shown once):")
     click.echo(secret)
@@ -155,6 +199,7 @@ def migration_apply_command(
     plan_path: Path,
     mapping_output: Path,
 ) -> None:
+    _require_sqlite_command("migration-apply")
     items = load_sources(todo_db, techx_db)
     app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
     with app.app_context():
@@ -180,6 +225,7 @@ def avatar_migration_dry_run(
     wiki_manifest: Path | None,
     output: Path,
 ) -> None:
+    _require_sqlite_command("avatar-migration-dry-run")
     app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
     with app.app_context():
         plan = build_avatar_plan(
@@ -196,6 +242,7 @@ def avatar_migration_dry_run(
 @cli.command("avatar-migration-apply")
 @click.option("--plan", "plan_path", type=click.Path(path_type=Path, exists=True), required=True)
 def avatar_migration_apply(plan_path: Path) -> None:
+    _require_sqlite_command("avatar-migration-apply")
     app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
     with app.app_context():
         result = apply_avatar_plan(plan_path)

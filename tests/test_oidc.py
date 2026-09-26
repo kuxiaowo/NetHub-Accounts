@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 import secrets
 import time
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from authlib.oidc.core import CodeIDToken
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from joserfc import jwt
 from joserfc.jwk import import_key
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app import oidc
 from app.extensions import db
 from app.models import AppMembership, AuthorizationCode, OAuth2Client, WebSession
 from tests.conftest import client_secret_hash, create_user, csrf_from
@@ -218,6 +222,41 @@ def test_discovery_and_jwks(client):
     keys = client.get("/.well-known/jwks.json").get_json()["keys"]
     assert keys[0]["alg"] == "RS256"
     assert "d" not in keys[0]
+
+
+def test_signing_key_is_cached_and_reloaded_after_rotation(app, client, monkeypatch):
+    original_import_key = oidc.import_key
+    imports = 0
+
+    def counting_import_key(*args, **kwargs):
+        nonlocal imports
+        imports += 1
+        return original_import_key(*args, **kwargs)
+
+    with oidc._SIGNING_KEY_CACHE_LOCK:
+        oidc._SIGNING_KEY_CACHE.clear()
+    monkeypatch.setattr(oidc, "import_key", counting_import_key)
+
+    first = client.get("/.well-known/jwks.json").get_json()["keys"][0]
+    second = client.get("/.well-known/jwks.json").get_json()["keys"][0]
+    assert imports == 2
+    assert second["kid"] == first["kid"]
+
+    key_path = app.config["OIDC_SIGNING_KEY_PATH"]
+    replacement_path = key_path.with_suffix(".next")
+    replacement = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    replacement_path.write_bytes(
+        replacement.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    os.replace(replacement_path, key_path)
+
+    rotated = client.get("/.well-known/jwks.json").get_json()["keys"][0]
+    assert imports == 4
+    assert rotated["kid"] != first["kid"]
 
 
 def test_authorization_code_pkce_and_userinfo(app, client):

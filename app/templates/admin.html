@@ -12,7 +12,7 @@
   </form>
 </section>
 <section class="panel">
-  <h2>用户</h2>
+  <h2>用户 <span class="muted">共 {{ total_users }} 个</span></h2>
   <div class="table-wrap"><table class="admin-users-table"><thead><tr><th>ID</th><th>用户名</th><th>显示名称</th><th>已使用网站</th><th>状态</th><th>临时密码</th><th>操作</th></tr></thead><tbody>
   {% for user in users %}<tr>
     <td>{{ user.id }}</td><td>{{ user.username }}{% if user.is_system_admin %} <span class="badge">系统管理员</span>{% endif %}</td><td>{{ user.display_name }}</td><td class="user-sites">{{ membership_map.get(user.id, [])|join("、") or "-" }}</td><td class="user-status">{{ "启用" if user.is_active else "停用" }}{% if user.merged_into_user_id %} / 已合并{% endif %}</td>
@@ -20,6 +20,11 @@
     <td><div class="user-actions"><form method="post" action="{{ url_for('web.admin_toggle_user', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny secondary" type="submit">{{ "停用" if user.is_active else "恢复" }}</button></form>{% if not user.is_active and user.id != current_user.id %}<form method="post" action="{{ url_for('web.admin_delete_user', user_id=user.id) }}" class="inline-form delete-user-form" data-confirm="永久删除账号“{{ user.username }}”？此操作无法撤销。"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny danger" type="submit">删除</button></form>{% endif %}</div></td>
   </tr>{% endfor %}
   </tbody></table></div>
+  {% if total_pages > 1 %}<nav class="actions" aria-label="用户列表分页">
+    {% if page > 1 %}<a class="button tiny secondary" href="{{ url_for('web.admin', page=page - 1, per_page=per_page) }}">上一页</a>{% endif %}
+    <span class="muted">第 {{ page }} / {{ total_pages }} 页</span>
+    {% if page < total_pages %}<a class="button tiny secondary" href="{{ url_for('web.admin', page=page + 1, per_page=per_page) }}">下一页</a>{% endif %}
+  </nav>{% endif %}
 </section>
 <section class="panel">
   <h2>合并重复账号</h2><p class="muted">来源账号的登录名、旧凭据和网站关系会转移到目标账号，来源账号随后停用。</p>

@@ -19,6 +19,14 @@ from .extensions import db
 from .models import User, utc_now
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -108,10 +116,10 @@ def build_avatar_plan(
             "avatar_color": candidate.get("avatar_color", "#6366f1"),
         }
         if source_path:
-            raw = Path(source_path).read_bytes()
-            entry["source_sha256"] = hashlib.sha256(raw).hexdigest()
+            path = Path(source_path)
+            entry["source_sha256"] = _sha256_file(path)
             try:
-                _decode_and_compress(raw)
+                _decode_and_compress(path)
             except AvatarError as exc:
                 errors.append(
                     {
@@ -161,10 +169,9 @@ def apply_avatar_plan(plan_path: Path) -> dict[str, int]:
             if not source_path:
                 continue
             path = Path(source_path)
-            raw = path.read_bytes()
-            if hashlib.sha256(raw).hexdigest() != entry.get("source_sha256"):
+            if _sha256_file(path) != entry.get("source_sha256"):
                 raise ValueError(f"头像源文件在 dry-run 后发生变化：{path}")
-            filename = store_avatar(user, raw)
+            filename = store_avatar(user, path)
             created_files.append((user, filename))
             user.avatar_file = filename
             user.avatar_updated_at = utc_now()

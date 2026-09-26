@@ -3,9 +3,12 @@ from __future__ import annotations
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .avatar_gateway import AvatarGatewayClient
 from .backchannel import start_worker
 from .config import Settings
+from .d1_gateway import D1GatewayClient
 from .extensions import db
+from .oauth_repository import init_oauth_repository
 from .oidc import init_oauth, signing_key_id
 from .routes import web
 from .security import load_request_user
@@ -22,6 +25,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=settings.cookie_secure,
         SQLALCHEMY_DATABASE_URI=settings.database_uri,
+        ACCOUNTS_DATABASE_BACKEND=settings.database_backend,
+        ACCOUNTS_D1_GATEWAY_URL=settings.d1_gateway_url,
+        ACCOUNTS_D1_GATEWAY_SECRET=settings.d1_gateway_secret,
+        ACCOUNTS_D1_GATEWAY_TIMEOUT=settings.d1_gateway_timeout,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SQLALCHEMY_ENGINE_OPTIONS={
             "connect_args": {"timeout": 5, "check_same_thread": False}
@@ -45,6 +52,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         AVATAR_SIZE_PX=settings.avatar_size_px,
         AVATAR_MAX_STORED_BYTES=settings.avatar_max_stored_bytes,
         AVATAR_WEBP_QUALITY=settings.avatar_webp_quality,
+        AVATAR_STORAGE_BACKEND=settings.avatar_storage_backend,
+        AVATAR_R2_GATEWAY_URL=settings.avatar_r2_gateway_url,
+        AVATAR_R2_HMAC_SECRET=settings.avatar_r2_hmac_secret,
+        AVATAR_R2_TIMEOUT=settings.avatar_r2_timeout,
         BACKCHANNEL_TIMEOUT_SECONDS=3,
         BACKCHANNEL_POLL_SECONDS=30,
         BACKCHANNEL_WORKER_ENABLED=True,
@@ -53,6 +64,27 @@ def create_app(test_config: dict | None = None) -> Flask:
     )
     if test_config:
         app.config.update(test_config)
+
+    if app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+        app.extensions["avatar_gateway_client"] = AvatarGatewayClient(
+            app.config["AVATAR_R2_GATEWAY_URL"],
+            app.config["AVATAR_R2_HMAC_SECRET"],
+            timeout=app.config["AVATAR_R2_TIMEOUT"],
+        )
+
+    if app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
+        # Flask-SQLAlchemy remains registered because Authlib and the model
+        # classes use its metadata.  Point it at a non-persistent placeholder
+        # so an accidental ORM access cannot create or read a local database.
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "connect_args": {"check_same_thread": False}
+        }
+        app.extensions["d1_gateway_client"] = D1GatewayClient(
+            app.config["ACCOUNTS_D1_GATEWAY_URL"],
+            app.config["ACCOUNTS_D1_GATEWAY_SECRET"],
+            timeout=app.config["ACCOUNTS_D1_GATEWAY_TIMEOUT"],
+        )
 
     if settings.trusted_proxy_count:
         app.wsgi_app = ProxyFix(
@@ -63,6 +95,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         )
 
     db.init_app(app)
+    init_oauth_repository(app)
     init_oauth(app)
     app.register_blueprint(web)
     app.before_request(load_request_user)
@@ -74,7 +107,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault(
             "Content-Security-Policy",
-            "default-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'self'",
+            "default-src 'self'; style-src 'self'; "
+            "img-src 'self' data: https://wiki-media.nethub.wiki; form-action 'self'",
         )
         if response.content_type and "json" in response.content_type:
             response.headers.setdefault("Cache-Control", "no-store")

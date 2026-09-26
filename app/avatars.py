@@ -5,18 +5,24 @@ import io
 import os
 import re
 import secrets
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from html import escape
 from pathlib import Path
+from typing import BinaryIO
 
-from flask import Response, current_app, request
+from flask import Response, current_app, redirect, request, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from .avatar_gateway import AvatarGatewayError
 from .models import User
 
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 MAX_SOURCE_PIXELS = 25_000_000
 COLOR_PATTERN = re.compile(r"^#[0-9a-f]{6}$")
 DEFAULT_AVATAR_COLOR = "#6366f1"
+UPLOAD_COPY_CHUNK_BYTES = 64 * 1024
 
 
 class AvatarError(ValueError):
@@ -40,19 +46,46 @@ def _user_directory(user: User) -> Path:
     return directory
 
 
-def _decode_and_compress(raw: bytes) -> bytes:
-    if not raw:
+@contextmanager
+def staged_avatar_upload(stream: BinaryIO) -> Iterator[Path]:
+    """Copy an upload to disk in bounded chunks and enforce the source size limit."""
+    maximum = current_app.config["AVATAR_UPLOAD_MAX_BYTES"]
+    temporary_path: Path | None = None
+    total = 0
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix="nethub-avatar-", suffix=".upload", delete=False
+        ) as file:
+            temporary_path = Path(file.name)
+            while True:
+                chunk = stream.read(min(UPLOAD_COPY_CHUNK_BYTES, maximum - total + 1))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > maximum:
+                    raise AvatarError("头像文件不能超过 5 MiB")
+                file.write(chunk)
+        if total == 0:
+            raise AvatarError("头像文件不能为空")
+        yield temporary_path
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def _decode_and_compress(source_path: Path) -> bytes:
+    if not source_path.is_file() or source_path.stat().st_size == 0:
         raise AvatarError("头像文件不能为空")
-    if len(raw) > current_app.config["AVATAR_UPLOAD_MAX_BYTES"]:
+    if source_path.stat().st_size > current_app.config["AVATAR_UPLOAD_MAX_BYTES"]:
         raise AvatarError("头像文件不能超过 5 MiB")
     try:
-        with Image.open(io.BytesIO(raw)) as probe:
+        with Image.open(source_path) as probe:
             if probe.format not in ALLOWED_FORMATS:
                 raise AvatarError("头像只支持 JPEG、PNG 或 WebP")
             if probe.width * probe.height > MAX_SOURCE_PIXELS:
                 raise AvatarError("头像图片像素尺寸过大")
             probe.verify()
-        with Image.open(io.BytesIO(raw)) as source:
+        with Image.open(source_path) as source:
             image = ImageOps.exif_transpose(source)
             image.load()
             if image.mode not in {"RGB", "RGBA"}:
@@ -79,11 +112,25 @@ def _decode_and_compress(raw: bytes) -> bytes:
     raise AvatarError("头像压缩后仍然过大，请换一张图片")
 
 
-def store_avatar(user: User, raw: bytes) -> str:
-    encoded = _decode_and_compress(raw)
+def store_avatar(user: User, source_path: Path) -> str:
+    encoded = _decode_and_compress(source_path)
+    filename = f"{secrets.token_hex(12)}.webp"
+    if current_app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+        gateway = current_app.extensions["avatar_gateway_client"]
+        key = f"avatars/{user.sub}/{filename}"
+        try:
+            gateway.put(key, encoded)
+        except AvatarGatewayError as exc:
+            # A lost response can leave an uploaded object behind.
+            if exc.status is None or exc.status >= 500:
+                try:
+                    gateway.delete(key)
+                except AvatarGatewayError:
+                    current_app.logger.exception("Could not remove an uncertain avatar upload")
+            raise
+        return filename
     directory = _user_directory(user)
     directory.mkdir(parents=True, exist_ok=True)
-    filename = f"{secrets.token_hex(12)}.webp"
     target = directory / filename
     temporary = directory / f".{filename}.tmp"
     try:
@@ -97,6 +144,11 @@ def store_avatar(user: User, raw: bytes) -> str:
 
 def delete_avatar_file(user: User, filename: str | None) -> None:
     if not filename or not re.fullmatch(r"[0-9a-f]{24}\.webp", filename):
+        return
+    if current_app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+        current_app.extensions["avatar_gateway_client"].delete(
+            f"avatars/{user.sub}/{filename}"
+        )
         return
     directory = _user_directory(user)
     target = (directory / filename).resolve()
@@ -129,11 +181,17 @@ def avatar_response(user: User) -> Response:
     if request.if_none_match.contains(etag):
         response = Response(status=304)
     elif user.avatar_file:
-        path = _user_directory(user) / user.avatar_file
-        if path.is_file() and path.parent.resolve() == _user_directory(user).resolve():
-            response = Response(path.read_bytes(), content_type="image/webp")
+        if current_app.config["AVATAR_STORAGE_BACKEND"] == "r2":
+            key = f"avatars/{user.sub}/{user.avatar_file}"
+            response = redirect(
+                current_app.extensions["avatar_gateway_client"].public_url(key), code=302
+            )
         else:
-            response = _fallback_response(user)
+            path = _user_directory(user) / user.avatar_file
+            if path.is_file() and path.parent.resolve() == _user_directory(user).resolve():
+                response = send_file(path, mimetype="image/webp", conditional=False, etag=False)
+            else:
+                response = _fallback_response(user)
     else:
         response = _fallback_response(user)
     response.set_etag(etag)
