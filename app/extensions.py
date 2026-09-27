@@ -20,5 +20,6 @@ def configure_sqlite(connection, _record) -> None:
     cursor = connection.cursor()
     cursor.execute("PRAGMA foreign_keys = ON")
     cursor.execute("PRAGMA journal_mode = WAL")
+    cursor.execute("PRAGMA synchronous = FULL")
     cursor.execute("PRAGMA busy_timeout = 5000")
     cursor.close()
