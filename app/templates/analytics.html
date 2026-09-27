@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}访问分析 · NetHub Accounts{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='analytics.css') }}">{% endblock %}
+{% block content %}
+<div class="analytics-shell">
+  <div class="analytics-heading">
+    <div><p class="eyebrow">OBSERVABILITY / CADDY</p><h1>访问分析</h1><p>五个网站的访问、性能与异常，统一从 Caddy 日志整理。</p></div>
+    <div class="analytics-actions"><a class="button secondary" href="{{ url_for('web.admin') }}">返回管理</a><a class="button secondary" id="export-link" href="{{ url_for('traffic.export_csv') }}">导出 CSV</a></div>
+  </div>
+  <form id="analytics-filter" class="analytics-filter">
+    <label>网站<select name="site"><option value="all">所有网站</option><option value="accounts">Accounts</option><option value="wiki">Campus Wiki</option><option value="todo">Todo</option><option value="cas">Codex CAS</option><option value="techx">TechX</option></select></label>
+    <label>时间<select name="range"><option value="today">今天</option><option value="7d" selected>最近 7 天</option><option value="30d">最近 30 天</option><option value="custom">自定义</option></select></label>
+    <label>开始<input type="datetime-local" name="from"></label>
+    <label>结束<input type="datetime-local" name="to"></label>
+    <label>用户 sub<input name="userSub" placeholder="按用户筛选"></label>
+    <label>IP<input name="ip" placeholder="按完整 IP 筛选"></label>
+    <label>Ray ID<input name="rayId" placeholder="按 Cloudflare Ray 查询"></label>
+    <label>路径<input name="path" placeholder="精确路径"></label>
+    <label>状态码<input name="status" type="number" min="100" max="599" placeholder="例如 500"></label>
+    <label>国家或地区<input name="country" maxlength="4" placeholder="例如 CN"></label>
+    <label>User-Agent<input name="userAgent" placeholder="精确匹配"></label>
+    <label class="check"><input type="checkbox" name="all" value="1"> 显示全部请求</label>
+    <button class="button" type="submit">查询</button>
+  </form>
+  <p id="analytics-message" class="analytics-message" role="status">正在读取索引…</p>
+  <div id="analytics-content" hidden>
+    <section class="metric-grid" id="metrics"></section>
+    <div class="analytics-columns">
+      <section class="analytics-card wide"><div class="card-heading"><h2>访问趋势</h2><span id="chart-caption"></span></div><div id="trend-chart" class="trend-chart" aria-label="访问趋势"></div></section>
+      <section class="analytics-card"><h2>网站分布</h2><div id="site-list"></div></section>
+      <section class="analytics-card"><h2>状态码</h2><div id="status-list"></div></section>
+      <section class="analytics-card"><h2>热门路径</h2><div id="path-list"></div></section>
+      <section class="analytics-card"><h2>用户</h2><div id="user-list"></div></section>
+      <section class="analytics-card"><div class="card-heading"><h2>IP</h2><button id="reveal-ip" type="button" class="plain-action">显示完整 IP</button></div><div id="ip-list"></div></section>
+      <section class="analytics-card"><h2>国家或地区</h2><div id="country-list"></div></section>
+      <section class="analytics-card"><h2>来源</h2><div id="referer-list"></div></section>
+      <section class="analytics-card"><h2>User-Agent</h2><div id="agent-list"></div></section>
+      <section class="analytics-card wide"><h2>慢请求</h2><div class="table-wrap"><table><thead><tr><th>网站</th><th>路径</th><th>状态</th><th>耗时</th></tr></thead><tbody id="slow-table"></tbody></table></div></section>
+    </div>
+    <section class="analytics-card event-card"><div class="card-heading"><div><h2>请求时间线</h2><p>点击用户或 IP，可查看该对象的请求。</p></div><span id="event-count"></span></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>网站</th><th>用户</th><th>IP</th><th>请求</th><th>状态</th><th>耗时</th><th>Ray ID</th></tr></thead><tbody id="event-table"></tbody></table></div><div class="pagination"><button id="prev-page" type="button" class="button secondary">上一页</button><span id="page-label"></span><button id="next-page" type="button" class="button secondary">下一页</button></div></section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='analytics.js') }}" defer></script>{% endblock %}

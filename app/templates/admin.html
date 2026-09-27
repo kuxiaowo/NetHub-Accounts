@@ -2,7 +2,7 @@
 {% block title %}管理 · NetHub Accounts{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>账号管理</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('web.admin_audit') }}">审计日志</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">退出通知{% if failed_jobs %} · {{ failed_jobs }} 失败{% endif %}</a></div></div>
+<div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>账号管理</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('traffic.page') }}">访问分析</a><a class="button secondary" href="{{ url_for('web.admin_audit') }}">审计日志</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">退出通知{% if failed_jobs %} · {{ failed_jobs }} 失败{% endif %}</a></div></div>
 <section class="panel">
   <h2>创建账号</h2>
   <form method="post" action="{{ url_for('web.admin_create_user') }}" class="form-grid">
