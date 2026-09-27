@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from contextlib import closing
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from app.analytics import connect, ingest_directory, mask_ip, parse_line, summary
+from app.analytics import _daily_filter, connect, ingest_directory, mask_ip, parse_line, summary
 from tests.conftest import create_user, csrf_from
 
 
@@ -41,7 +41,14 @@ def test_parse_trusts_only_cloudflare_edge_and_drops_query():
     assert event["ray_id"] == "ray-1"
     spoofed = parse_line(record(edge="198.51.100.4"), trusted)
     assert spoofed["ip"] == "198.51.100.4"
+    assert spoofed["country"] == ""
+    assert spoofed["ray_id"] == ""
     assert mask_ip(event["ip"]) == "203.0.113.*"
+
+
+def test_thirty_day_preset_uses_request_index():
+    start = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+    assert _daily_filter({"from": start}) is None
 
 
 def test_ingest_rotation_checkpoint_and_site_totals(tmp_path):
