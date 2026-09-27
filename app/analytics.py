@@ -86,7 +86,10 @@ def header(headers: dict, name: str) -> str:
 
 def _safe_referer(value: str) -> str:
     """Keep a useful source URL without persisting query tokens or fragments."""
-    parts = urlsplit(value)
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return ""
     if parts.scheme not in {"http", "https"} or not parts.hostname:
         return ""
     return f"{parts.scheme}://{parts.netloc}{parts.path}"[:1000]
@@ -128,6 +131,12 @@ def parse_line(raw: bytes, trusted: tuple) -> dict | None:
         sub = str(item.get("user_sub") or "")[:80]
         if sub and (len(sub) != 36 or any(char not in "0123456789abcdef-" for char in sub.lower())):
             sub = ""
+        cloudflare_edge = False
+        try:
+            edge_address = ipaddress.ip_address(edge)
+            cloudflare_edge = any(edge_address in network for network in trusted)
+        except ValueError:
+            pass
         return {
             "event_id": hashlib.sha256(raw.rstrip(b"\r\n")).hexdigest(),
             "occurred_at": when.isoformat(timespec="microseconds"),
@@ -143,8 +152,8 @@ def parse_line(raw: bytes, trusted: tuple) -> dict | None:
             "user_sub": sub,
             "user_agent": agent,
             "referer": _safe_referer(header(headers, "Referer")),
-            "country": header(headers, "CF-IPCountry")[:4],
-            "ray_id": header(headers, "CF-Ray")[:100],
+            "country": header(headers, "CF-IPCountry")[:4] if cloudflare_edge else "",
+            "ray_id": header(headers, "CF-Ray")[:100] if cloudflare_edge else "",
             "is_noise": int(
                 path in NOISE_PATHS
                 or path.startswith(NOISE_PREFIXES)
@@ -311,7 +320,8 @@ def rows(connection: sqlite3.Connection, sql: str, params=()) -> list[dict]:
 
 def _daily_filter(query) -> tuple[str, list] | None:
     _, _, meta = filters(query)
-    if meta["from"] >= datetime.now(UTC) - timedelta(days=30):
+    # The browser's 30-day preset is a few seconds older by the time it arrives.
+    if meta["from"] >= datetime.now(UTC) - timedelta(days=30, minutes=5):
         return None
     if any(
         query.get(key)
