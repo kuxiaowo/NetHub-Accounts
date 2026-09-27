@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from flask import Flask
+from flask import Flask, g
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .analytics import default_database_path
+from .analytics_routes import traffic
 from .avatar_gateway import AvatarGatewayClient
 from .backchannel import start_worker
 from .config import Settings
@@ -61,6 +63,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         BACKCHANNEL_WORKER_ENABLED=True,
         ACCOUNTS_HOST=settings.host,
         ACCOUNTS_PORT=settings.port,
+        ACCOUNTS_ANALYTICS_DB=default_database_path(),
     )
     if test_config:
         app.config.update(test_config)
@@ -99,9 +102,13 @@ def create_app(test_config: dict | None = None) -> Flask:
     init_oauth(app)
     app.register_blueprint(web)
     app.before_request(load_request_user)
+    app.register_blueprint(traffic)
 
     @app.after_request
     def security_headers(response):
+        user = getattr(g, "current_user", None)
+        if user is not None and getattr(user, "sub", None):
+            response.headers["X-Nethub-User-Sub"] = user.sub
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")

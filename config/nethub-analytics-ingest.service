@@ -1,0 +1,16 @@
+[Unit]
+Description=Index NetHub Caddy access logs
+After=network-online.target caddy.service
+
+[Service]
+Type=oneshot
+User=nethub
+Group=nethub
+WorkingDirectory=/srv/nethub/apps/accounts/current
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/nethub/venvs/accounts/bin/python -m app.analytics_cli ingest --database /srv/nethub/data/analytics.sqlite3 --log /var/log/caddy/access.json --cloudflare-ips /etc/nethub/cloudflare-ips.txt
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/srv/nethub/data
+ReadOnlyPaths=/var/log/caddy /etc/nethub/cloudflare-ips.txt
+

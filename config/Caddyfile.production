@@ -1,0 +1,235 @@
+nethub.wiki {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    handle /media/* {
+        reverse_proxy 127.0.0.1:3100 {
+            header_up -X-Nethub-User-Sub
+            header_down -X-Nethub-User-Sub
+        }
+    }
+    @wikiapi path /api /api/*
+    handle @wikiapi {
+        reverse_proxy 127.0.0.1:3100 {
+            header_up -X-Nethub-User-Sub
+            header_down -X-Nethub-User-Sub
+        }
+    }
+    handle {
+        reverse_proxy 127.0.0.1:3200 {
+        header_up -X-Nethub-User-Sub
+        header_down -X-Nethub-User-Sub
+    }
+    }
+}
+www.nethub.wiki, test.nethub.wiki {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    handle /media/* {
+        reverse_proxy 127.0.0.1:3100 {
+            header_up -X-Nethub-User-Sub
+            header_down -X-Nethub-User-Sub
+        }
+    }
+    redir https://nethub.wiki{uri} 308
+}
+auth.nethub.wiki {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    handle /media/* {
+        reverse_proxy 127.0.0.1:3100 {
+            header_up -X-Nethub-User-Sub
+            header_down -X-Nethub-User-Sub
+        }
+    }
+    reverse_proxy 127.0.0.1:3400 {
+        header_up -X-Nethub-User-Sub
+        header_down -X-Nethub-User-Sub
+    }
+}
+todolist.nethub.wiki {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    handle /media/* {
+        reverse_proxy 127.0.0.1:3100 {
+            header_up -X-Nethub-User-Sub
+            header_down -X-Nethub-User-Sub
+        }
+    }
+    reverse_proxy 127.0.0.1:8092 {
+        header_up -X-Nethub-User-Sub
+        header_down -X-Nethub-User-Sub
+    }
+}
+sdgj.tech {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:5000 {
+        header_up -X-Nethub-User-Sub
+        header_down -X-Nethub-User-Sub
+    }
+}
+www.sdgj.tech {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    redir https://sdgj.tech{uri} 308
+}
+codex.nethub.wiki {
+    log {
+        output file /var/log/caddy/access.json {
+            roll_size 100MiB
+            roll_keep 40
+            roll_keep_for 720h
+        }
+        format filter {
+            fields {
+                request>headers>Cookie delete
+                request>headers>Authorization delete
+                request>headers>Proxy-Authorization delete
+                resp_headers>Set-Cookie delete
+                request>headers>X-Nethub-User-Sub delete
+                request>uri regexp "[?].*$" ""
+                request>headers>Referer regexp "[?].*$" ""
+            }
+            wrap json
+        }
+    }
+    request_header -X-Nethub-User-Sub
+    log_append user_sub {rp.header.X-Nethub-User-Sub}
+    encode zstd gzip
+    handle /media/* {
+        reverse_proxy 127.0.0.1:3100 {
+            header_up -X-Nethub-User-Sub
+            header_down -X-Nethub-User-Sub
+        }
+    }
+    reverse_proxy 127.0.0.1:3300 {
+        header_up -X-Nethub-User-Sub
+        header_down -X-Nethub-User-Sub
+    }
+}
+
+
+
+
+
+
