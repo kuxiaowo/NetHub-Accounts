@@ -52,7 +52,10 @@ def test_missing_token_does_not_call_siteverify(app, monkeypatch):
 
 
 def test_siteverify_outage_fails_closed(app, monkeypatch):
-    monkeypatch.setattr(turnstile, "urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError("offline")))
+    def offline(*_args, **_kwargs):
+        raise URLError("offline")
+
+    monkeypatch.setattr(turnstile, "urlopen", offline)
     with app.test_request_context(
         "/login", method="POST", data={"cf-turnstile-response": "token"}
     ):
