@@ -1,91 +1,120 @@
 {% extends "base.html" %}
-{% block title %}我的账号 · NetHub Accounts{% endblock %}
-{% block head %}<script src="{{ url_for('static', filename='avatar.js', v='cropper3') }}" defer></script>{% endblock %}
+{% block title %}个人资料 · NetHub Accounts{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='account.css') }}">
+<script src="{{ url_for('static', filename='avatar.js', v='cropper3') }}" defer></script>
+{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">ACCOUNT</p><h1>我的账号</h1></div><a class="button secondary" href="{{ url_for('web.oauth_logout') }}">退出所有网站</a></div>
-<div class="two-column">
-  <section class="panel avatar-panel" data-avatar-editor>
-    <h2>统一头像</h2>
-    <div class="avatar-editor-layout">
-      <div class="avatar-preview-column">
-        <span class="avatar-preview-label">实时预览</span>
-        <span class="avatar avatar-large avatar-live-preview" data-avatar-live-preview
-              style="--avatar-color:{{ current_user.avatar_color }}"
-              data-avatar-fallback="{{ current_user.display_name[:1]|upper }}">
-          <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="当前头像" data-avatar-current-image>
-          <canvas width="192" height="192" data-avatar-live-canvas hidden></canvas>
-        </span>
-        <p class="field-help avatar-preview-help">圆形预览就是保存后的头像效果。</p>
-      </div>
-      <div class="avatar-controls">
-        <form method="post" action="{{ url_for('web.account_avatar_upload') }}" enctype="multipart/form-data" data-avatar-form>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="avatar-file-row">
-            <label class="button secondary avatar-file-button" for="avatar-file">选择图片</label>
-            <input id="avatar-file" class="avatar-file-input" type="file" name="avatar"
-                   accept="image/jpeg,image/png,image/webp" data-avatar-input required>
-            <span class="avatar-file-name" data-avatar-file-name>尚未选择图片</span>
+<div class="account-page">
+  <header class="account-heading">
+    <p class="eyebrow">MY ACCOUNT</p><h1>个人资料</h1>
+    <p>管理你的统一头像、显示名称和账号安全。</p>
+  </header>
+  <div class="account-layout">
+    <aside class="account-sidebar">
+      <nav class="account-nav" aria-label="账号设置导航">
+        <a href="#profile">个人资料 <span aria-hidden="true">↗</span></a>
+        <a href="#security">账号安全 <span aria-hidden="true">↗</span></a>
+        <a href="#websites">已使用的网站 <span aria-hidden="true">↗</span></a>
+      </nav>
+      <p>资料由账号中心统一管理，各网站的业务资料和权限由各网站管理。</p>
+      <a class="account-home-link" href="{{ url_for('web.home') }}">返回网站首页 →</a>
+    </aside>
+    <div class="account-sections">
+      <section id="profile" class="panel account-panel" data-avatar-editor aria-labelledby="profile-title">
+        <div class="account-section-heading">
+          <div><h2 id="profile-title">个人资料</h2><p>让其他网站认出你。</p></div><span class="account-chip">统一账号</span>
+        </div>
+        <div class="account-identity">
+          <span class="avatar avatar-large avatar-live-preview" data-avatar-live-preview style="--avatar-color:{{ current_user.avatar_color }}" data-avatar-fallback="{{ current_user.display_name[:1]|upper }}">
+            <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="当前头像" data-avatar-current-image>
+            <canvas width="192" height="192" data-avatar-live-canvas hidden></canvas>
+          </span>
+          <div><h3>{{ current_user.display_name }}</h3><p>@{{ current_user.username }}</p><span class="field-help">头像和显示名称用于已接入的网站。</span></div>
+        </div>
+        <details class="account-disclosure avatar-disclosure">
+          <summary>更换头像 <span class="disclosure-hint">图片或文字头像</span></summary>
+          <div class="account-disclosure-body avatar-controls">
+            <form method="post" action="{{ url_for('web.account_avatar_upload') }}" enctype="multipart/form-data" data-avatar-form>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="avatar-file-row">
+                <label class="button secondary avatar-file-button" for="avatar-file">选择图片</label>
+                <input id="avatar-file" class="avatar-file-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" data-avatar-input required>
+                <span class="avatar-file-name" data-avatar-file-name>尚未选择图片</span>
+              </div>
+              <p class="field-help avatar-format-help">支持 JPEG、PNG、WebP，最大 5 MiB。</p>
+              <div class="avatar-crop-stage" data-avatar-crop-stage hidden>
+                <canvas width="512" height="512" data-avatar-canvas aria-label="头像裁剪区域"></canvas>
+                <span class="avatar-crop-mask" aria-hidden="true"></span><span class="avatar-crop-hint" aria-hidden="true">拖动图片调整位置</span>
+              </div>
+              <label class="avatar-zoom-control" data-avatar-zoom-wrap hidden>缩放<input type="range" min="1" max="3" step="0.01" value="1" data-avatar-zoom></label>
+              <p class="field-help">在固定圆框下拖动或缩放图片，上方头像会实时预览。</p>
+              <p class="avatar-editor-status" data-avatar-status aria-live="polite"></p>
+              <div class="account-form-actions"><button class="button avatar-save-button" type="submit" data-avatar-save disabled>保存头像</button></div>
+            </form>
+            {% if current_user.avatar_file %}
+            <form method="post" action="{{ url_for('web.account_avatar_delete') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div><button class="link-button account-danger-link" type="submit">移除图片，使用文字头像</button></div>
+            </form>
+            {% endif %}
+            <form class="avatar-color-form" method="post" action="{{ url_for('web.account_avatar_color') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label>文字头像背景色<input type="color" name="avatar_color" value="{{ current_user.avatar_color }}"></label>
+              <button class="button secondary" type="submit">保存颜色</button>
+              <p class="field-help">未设置图片时，显示名称的首字会作为头像。</p>
+            </form>
           </div>
-          <div class="avatar-crop-stage" data-avatar-crop-stage hidden>
-            <canvas width="512" height="512" data-avatar-canvas aria-label="头像裁剪区域"></canvas>
-            <span class="avatar-crop-mask" aria-hidden="true"></span>
-            <span class="avatar-crop-hint" aria-hidden="true">拖动图片调整位置</span>
+        </details>
+        <form class="account-profile-form" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="profile">
+          <div class="account-fields">
+            <label>用户名<input value="{{ current_user.username }}" readonly aria-describedby="username-help"><span id="username-help" class="field-help">用于登录，无法在此修改。</span></label>
+            <label>显示名称<input name="display_name" maxlength="80" value="{{ current_user.display_name }}" autocomplete="nickname" required><span class="field-help">其他网站中展示的名称，最多 80 个字符。</span></label>
           </div>
-          <label class="avatar-zoom-control" data-avatar-zoom-wrap hidden>缩放
-            <input type="range" min="1" max="3" step="0.01" value="1" data-avatar-zoom>
-          </label>
-          <p class="field-help">在固定圆框下拖动图片，使用滑杆或滚轮缩放；保存时仅上传圆框选中的区域。</p>
-          <p class="avatar-editor-status" data-avatar-status aria-live="polite"></p>
-          <button class="button avatar-save-button" type="submit" data-avatar-save disabled>保存头像</button>
+          <div class="account-form-actions"><button class="button" type="submit">保存资料</button></div>
         </form>
-        {% if current_user.avatar_file %}
-          <form method="post" action="{{ url_for('web.account_avatar_delete') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="button danger" type="submit">移除图片</button>
-          </form>
-        {% endif %}
-        <form class="avatar-color-form" method="post" action="{{ url_for('web.account_avatar_color') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label>文字头像背景色
-            <input type="color" name="avatar_color" value="{{ current_user.avatar_color }}">
-          </label>
-          <button class="button secondary" type="submit">保存颜色</button>
-        </form>
-      </div>
+      </section>
+      <section id="security" class="panel account-panel" aria-labelledby="security-title">
+        <div class="account-section-heading"><div><h2 id="security-title">账号安全</h2><p>管理登录方式和密码。</p></div></div>
+        <details class="account-disclosure password-disclosure" {% if current_user.must_change_password or (request.method == 'POST' and request.form.get('action') == 'password') %}open{% endif %}>
+          <summary>{{ "设置新密码" if current_user.must_change_password else "修改密码" }} <span class="disclosure-hint">{% if current_user.must_change_password %}需要处理{% else %}保护账号安全{% endif %}</span></summary>
+          <div class="account-disclosure-body">
+            {% if current_user.must_change_password %}<p class="warning-text">当前使用的是临时密码，修改后才能继续进入应用。</p>{% endif %}
+            <form class="account-password-form" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="password">
+              <label>当前密码<input type="password" name="current_password" autocomplete="current-password" required></label>
+              <div class="account-fields">
+                <label>新密码<input type="password" name="new_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+                <label>确认新密码<input type="password" name="confirm_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+              </div>
+              <p class="field-help">密码需为 8–128 个字符。修改后，其他登录会话将退出。</p>
+              <div class="account-form-actions"><button class="button" type="submit">{{ "设置新密码" if current_user.must_change_password else "修改密码" }}</button></div>
+            </form>
+          </div>
+        </details>
+        <div class="account-login-names">
+          <h3>可用登录名</h3><p class="field-help">以下名称均可用于登录此账号。</p>
+          <div class="account-aliases">{% for alias in aliases %}<span>{{ alias.alias }}</span>{% else %}<span>{{ current_user.username }}</span>{% endfor %}</div>
+        </div>
+        <details class="account-disclosure account-identifier">
+          <summary>账号标识 <span class="disclosure-hint">用于识别同一个账号</span></summary>
+          <div class="account-disclosure-body"><p class="field-help">各网站通过这个固定标识关联你的账号。</p><p class="mono">{{ current_user.sub }}</p></div>
+        </details>
+        <div class="account-logout-row"><div><h3>退出所有网站</h3><p>结束账号中心和已接入网站的登录会话。</p></div><a class="button secondary" href="{{ url_for('web.oauth_logout') }}">退出所有网站</a></div>
+      </section>
+      <section id="websites" class="panel account-panel" aria-labelledby="websites-title">
+        <div class="account-section-heading"><div><h2 id="websites-title">已使用的网站</h2><p>使用统一账号登录过的网站。</p></div><span class="account-chip">{{ memberships|length }} 个网站</span></div>
+        <div class="account-websites">
+          {% for membership, client in memberships %}
+          <article class="account-website">
+            <h3>{{ client.client_name or client.client_id }}</h3>
+            <dl><div><dt>首次使用</dt><dd><time title="{{ membership.first_authorized_at }}">{{ (membership.first_authorized_at|string)[:10] }}</time></dd></div><div><dt>最近授权</dt><dd><time title="{{ membership.last_authorized_at }}">{{ (membership.last_authorized_at|string)[:10] }}</time></dd></div></dl>
+          </article>
+          {% else %}<div class="account-empty"><h3>还没有使用过网站</h3><p>从首页打开一个网站，使用统一账号登录后，就会显示在这里。</p><a class="button secondary small" href="{{ url_for('web.home') }}">查看可使用的网站 →</a></div>{% endfor %}
+        </div>
+      </section>
     </div>
-  </section>
-  <section class="panel">
-    <h2>基本资料</h2>
-    <dl><dt>用户名</dt><dd>{{ current_user.username }}</dd><dt>统一标识</dt><dd class="mono">{{ current_user.sub }}</dd></dl>
-    <form method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="profile">
-      <label>显示名称<input name="display_name" maxlength="80" value="{{ current_user.display_name }}" required></label>
-      <button class="button" type="submit">保存资料</button>
-    </form>
-  </section>
-  <section class="panel">
-    <h2>{{ "设置新密码" if current_user.must_change_password else "修改密码" }}</h2>
-    {% if current_user.must_change_password %}<p class="warning-text">当前使用的是临时密码，修改后才能继续进入应用。</p>{% endif %}
-    <form method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="password">
-      <label>当前密码<input type="password" name="current_password" autocomplete="current-password" required></label>
-      <label>新密码<input type="password" name="new_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
-      <label>确认新密码<input type="password" name="confirm_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
-      <button class="button" type="submit">修改密码</button>
-    </form>
-  </section>
+  </div>
 </div>
-<section class="panel">
-  <h2>登录名</h2>
-  <div class="tag-list">{% for alias in aliases %}<span>{{ alias.alias }} <small>{{ alias.source }}</small></span>{% endfor %}</div>
-</section>
-<section class="panel">
-  <h2>已使用的网站</h2>
-  <table><thead><tr><th>网站</th><th>首次使用</th><th>最近授权</th></tr></thead><tbody>
-    {% for membership, client in memberships %}<tr><td>{{ client.client_name or client.client_id }}</td><td>{{ membership.first_authorized_at }}</td><td>{{ membership.last_authorized_at }}</td></tr>
-    {% else %}<tr><td colspan="3">尚未使用任何已接入网站。</td></tr>{% endfor %}
-  </tbody></table>
-</section>
 {% endblock %}

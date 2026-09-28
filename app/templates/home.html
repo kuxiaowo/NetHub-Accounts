@@ -4,8 +4,8 @@
 {% block content %}
 <section class="hero">
   <p class="eyebrow">UNIFIED ACCOUNT</p>
-  <h1>一个账号，进入需要的网站。</h1>
-  <p>账号中心负责登录；TodoList、TechX心情晴雨表、Campus Wiki 和 Codex笔记中心继续独立保存业务资料与权限。</p>
+  <h1>统一账号可使用的网站</h1>
+  <p>TodoList、TechX心情晴雨表、Campus Wiki、Codex笔记中心。</p>
   {% if not current_user %}
     <div class="actions">
       <a class="button" href="{{ url_for('web.login') }}">登录</a>
