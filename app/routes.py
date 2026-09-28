@@ -67,6 +67,7 @@ from .security import (
     token_digest,
     validate_csrf,
 )
+from .turnstile import TurnstileUnavailable, verify_turnstile
 
 web = Blueprint("web", __name__)
 
@@ -229,6 +230,14 @@ def register():
     next_url = safe_next(request.values.get("next"))
     if request.method == "POST":
         require_csrf()
+        try:
+            verified = verify_turnstile("register")
+        except TurnstileUnavailable:
+            flash("人机验证服务暂时不可用，请稍后重试。", "error")
+            return render_template("register.html", disabled=False), 503
+        if not verified:
+            flash("请完成人机验证后重试。", "error")
+            return render_template("register.html", disabled=False), 400
         subject = request.remote_addr or "unknown"
         if rate_limited(
             "register",
@@ -313,6 +322,14 @@ def login():
         return redirect(next_url or url_for("web.account"))
     if request.method == "POST":
         require_csrf()
+        try:
+            verified = verify_turnstile("login")
+        except TurnstileUnavailable:
+            flash("人机验证服务暂时不可用，请稍后重试。", "error")
+            return render_template("login.html"), 503
+        if not verified:
+            flash("请完成人机验证后重试。", "error")
+            return render_template("login.html"), 400
         username = request.form.get("username", "")
         subject = f"{request.remote_addr or ''}|{username.strip().casefold()}"
         if rate_limited(

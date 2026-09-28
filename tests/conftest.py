@@ -16,6 +16,7 @@ from app.security import hash_password, normalize_username
 
 @pytest.fixture()
 def app(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.routes.verify_turnstile", lambda action: True)
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     key_path = tmp_path / "oidc.pem"
     key_path.write_bytes(

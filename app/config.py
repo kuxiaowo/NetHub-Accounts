@@ -64,6 +64,8 @@ class Settings:
     avatar_r2_gateway_url: str
     avatar_r2_hmac_secret: str
     avatar_r2_timeout: float
+    turnstile_site_key: str
+    turnstile_secret_key: str
 
     @classmethod
     def from_env(cls, *, testing: bool = False) -> Settings:
@@ -115,6 +117,8 @@ class Settings:
             .rstrip("/"),
             avatar_r2_hmac_secret=os.getenv("AVATAR_R2_HMAC_SECRET", "").strip(),
             avatar_r2_timeout=float(os.getenv("AVATAR_R2_TIMEOUT", "10")),
+            turnstile_site_key=os.getenv("TURNSTILE_SITE_KEY", "").strip(),
+            turnstile_secret_key=os.getenv("TURNSTILE_SECRET_KEY", "").strip(),
         )
         if testing:
             return settings
@@ -142,6 +146,8 @@ class Settings:
             )
         if settings.avatar_r2_timeout <= 0:
             raise RuntimeError("AVATAR_R2_TIMEOUT must be positive")
+        if not settings.turnstile_site_key or not settings.turnstile_secret_key:
+            raise RuntimeError("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required")
         if len(settings.secret_key.encode("utf-8")) < 32:
             raise RuntimeError("ACCOUNTS_SECRET_KEY must contain at least 32 bytes")
         if not settings.signing_key_path.is_file():
