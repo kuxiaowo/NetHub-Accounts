@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import os
+import re
 import secrets
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -206,6 +208,12 @@ def test_login_ends_form_navigation_before_oauth_callback_redirect(app, client):
     assert "form-action 'self'" in response.headers["Content-Security-Policy"]
     assert b"data-auth-continue" in response.data
     assert b"/oauth/authorize?" in response.data
+    assert b'http-equiv="refresh"' not in response.data
+    assert b"<noscript>" in response.data
+    assert b"continue.js?v=auth2" in response.data
+    destination = re.search(rb'data-destination="([^"]+)"', response.data)
+    assert destination
+    assert html.unescape(destination.group(1).decode()) == authorization_path
 
     callback_redirect = client.get(authorization_path)
     callback_query = parse_qs(urlsplit(callback_redirect.location).query)
