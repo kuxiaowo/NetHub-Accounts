@@ -33,6 +33,7 @@ python -m app
 ```
 
 开发环境使用 HTTP 时，把 `SESSION_COOKIE_SECURE=false`。生产环境必须恢复为 `true`。
+生产还必须配置 `TURNSTILE_SITE_KEY` 和 `TURNSTILE_SECRET_KEY`；登录、注册提交会在服务端调用 Cloudflare Siteverify，并核对域名及操作名称。
 
 ## Linux 一键初始化
 

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}注册 · NetHub Accounts{% endblock %}
+{% block head %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endblock %}
 {% block content %}
 <section class="auth-card">
   <p class="eyebrow">CREATE ACCOUNT</p>
@@ -16,6 +17,7 @@
     <label>密码<input type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
     <label>确认密码<input type="password" name="confirm_password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
     <label class="check"><input type="checkbox" name="accept_terms" value="yes" required> 我同意账号中心保存登录所需的用户名、显示名称和安全凭据。各网站另行处理自己的业务数据。</label>
+    <div class="cf-turnstile" data-sitekey="{{ config.TURNSTILE_SITE_KEY }}" data-action="register"></div>
     <button class="button full" type="submit">创建账号</button>
   </form>
   {% endif %}

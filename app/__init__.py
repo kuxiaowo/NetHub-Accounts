@@ -64,6 +64,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         ACCOUNTS_HOST=settings.host,
         ACCOUNTS_PORT=settings.port,
         ACCOUNTS_ANALYTICS_DB=default_database_path(),
+        TURNSTILE_SITE_KEY=settings.turnstile_site_key,
+        TURNSTILE_SECRET_KEY=settings.turnstile_secret_key,
+        TURNSTILE_HOSTNAME="auth.nethub.wiki",
     )
     if test_config:
         app.config.update(test_config)
@@ -115,6 +118,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; style-src 'self'; "
+            "script-src 'self' https://challenges.cloudflare.com; "
+            "frame-src https://challenges.cloudflare.com; "
+            "connect-src 'self' https://challenges.cloudflare.com; "
             "img-src 'self' data: https://wiki-media.nethub.wiki; form-action 'self'",
         )
         if response.content_type and "json" in response.content_type:
