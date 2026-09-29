@@ -103,6 +103,11 @@ def test_home_uses_named_single_column_app_previews(app, client):
     assert "TechX心情晴雨表" in response.text
     assert "Codex笔记中心" in response.text
     assert response.text.count('class="app-preview"') == 4
+    assert "previews/todolist.webp" in response.text
+    assert "previews/mood-meter-redacted.png" in response.text
+    assert "previews/campus-wiki.webp" in response.text
+    assert "previews/codex-notes-redacted.png" in response.text
+    assert "Compesistant" not in response.text
     assert response.text.find(">TodoList<") < response.text.find(">TechX")
     assert response.text.find(">TechX") < response.text.find(">Campus Wiki<")
     assert response.text.find(">Campus Wiki<") < response.text.find(">Codex")

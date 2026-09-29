@@ -75,13 +75,13 @@ HOME_CLIENT_META = {
     "todo": {
         "name": "TodoList",
         "preview": "previews/todolist.webp",
-        "preview_alt": "TodoList 网页预览",
+        "preview_alt": "TodoList 深色模式周视图网页预览",
         "order": 0,
     },
     "techx": {
         "name": "TechX心情晴雨表",
-        "preview": "previews/techx-mood.webp",
-        "preview_alt": "TechX心情晴雨表网页预览",
+        "preview": "previews/mood-meter-redacted.png",
+        "preview_alt": "TechX心情晴雨表的每日心情量表网页预览，用户名已模糊",
         "order": 1,
     },
     "campus-wiki": {
@@ -92,8 +92,8 @@ HOME_CLIENT_META = {
     },
     "cas": {
         "name": "Codex笔记中心",
-        "preview": "previews/codex-notes.svg",
-        "preview_alt": "Codex笔记中心网页预览",
+        "preview": "previews/codex-notes-redacted.png",
+        "preview_alt": "Codex笔记中心的栏目导航和笔记图集网页预览，用户名已模糊",
         "order": 3,
     },
 }
