@@ -32,7 +32,7 @@ def _alembic_config() -> Config:
 
 
 def _configured_backend() -> str:
-    return os.getenv("ACCOUNTS_DATABASE_BACKEND", "d1").strip().casefold()
+    return os.getenv("ACCOUNTS_DATABASE_BACKEND", "sqlite").strip().casefold()
 
 
 def _require_sqlite_command(name: str) -> None:

@@ -70,7 +70,7 @@ class Settings:
     @classmethod
     def from_env(cls, *, testing: bool = False) -> Settings:
         database_backend = (
-            os.getenv("ACCOUNTS_DATABASE_BACKEND", "sqlite" if testing else "d1").strip().casefold()
+            os.getenv("ACCOUNTS_DATABASE_BACKEND", "sqlite").strip().casefold()
         )
         raw_database = os.getenv("DATABASE_URL", "sqlite:///data/accounts.sqlite3")
         key_path = Path(os.getenv("OIDC_SIGNING_KEY_PATH", "data/oidc-rs256.pem"))
@@ -126,8 +126,8 @@ class Settings:
             raise RuntimeError("ACCOUNTS_HOST cannot be empty")
         if not settings.issuer.startswith("https://"):
             raise RuntimeError("ACCOUNTS_ISSUER must use https://")
-        if settings.database_backend not in {"sqlite", "d1"}:
-            raise RuntimeError("ACCOUNTS_DATABASE_BACKEND must be sqlite or d1")
+        if settings.database_backend != "sqlite":
+            raise RuntimeError("ACCOUNTS_DATABASE_BACKEND must be sqlite")
         if settings.database_backend == "d1" and (
             not settings.d1_gateway_url or not settings.d1_gateway_secret
         ):
