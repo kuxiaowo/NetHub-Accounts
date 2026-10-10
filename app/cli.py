@@ -21,7 +21,7 @@ from .backchannel import deliver_pending_jobs
 from .config import PROJECT_ROOT
 from .extensions import db
 from .migration_tool import apply_plan, build_plan, load_sources, write_plan
-from .models import LoginAlias, OAuth2Client, User
+from .models import AuditLog, LoginAlias, OAuth2Client, User
 from .security import hash_password, normalize_username
 
 
@@ -256,6 +256,41 @@ def retry_backchannel(limit: int) -> None:
     with app.app_context():
         result = deliver_pending_jobs(limit)
     click.echo(json.dumps(result))
+
+
+@cli.command("set-admin")
+@click.option("--user-id", type=int, required=True)
+@click.option("--enabled/--disabled", default=True)
+@click.option("--reason", required=True)
+def set_admin(user_id, enabled, reason):
+    """Change an existing member's role from the trusted server console."""
+    if not 1 <= len(reason.strip()) <= 500:
+        raise click.ClickException("reason must contain 1–500 characters")
+    app = create_app({"BACKCHANNEL_WORKER_ENABLED": False})
+    with app.app_context():
+        from .governance import write_lock
+
+        with write_lock():
+            user = db.session.get(User, user_id, populate_existing=True)
+            if not user or not user.is_active or user.merged_into_user_id:
+                raise click.ClickException("member must exist and be active")
+            if not enabled and user.is_system_admin:
+                active = db.session.scalars(
+                    select(User.id).where(User.is_system_admin.is_(True), User.is_active.is_(True))
+                ).all()
+                if len(active) <= 1:
+                    raise click.ClickException("cannot remove the last active administrator")
+            user.is_system_admin = enabled
+            db.session.add(
+                AuditLog(
+                    target_user_id=user.id,
+                    action="admin.role_changed",
+                    details_json=json.dumps(
+                        {"operator": "server-console", "enabled": enabled, "reason": reason.strip()}
+                    ),
+                )
+            )
+    click.echo("administrator role updated")
 
 
 if __name__ == "__main__":

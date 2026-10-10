@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}邮箱与邀请 · NetHub Accounts{% endblock %}
+{% block content %}
+<section class="panel"><h1>邮箱与邀请</h1><a href="{{ url_for('web.account') }}">返回个人中心</a>
+<h2>邮箱验证</h2><p>{{ current_user.email or '尚未绑定邮箱' }} · {{ '已验证' if current_user.email_verified_at else '未验证' }}</p>
+{% if delivery %}<p role="status">最近验证邮件：{{ {'pending':'等待发送','sending':'正在发送','sent':'已发送，请检查收件箱和垃圾邮件','failed':'发送失败，请稍后重新申请或联系管理员'}.get(delivery.status, '状态未知') }}</p>{% endif %}
+<form method="post" action="{{ url_for('governance.email_request') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>邮箱<input type="email" name="email" value="{{ current_user.email or '' }}" maxlength="254" required></label><button class="button" type="submit">发送验证邮件</button></form>
+<h2>邀请朋友</h2><p>每天北京时间最多生成一个单次凭证，有效期 7 天。撤销不返还额度。</p>
+{% if blocker %}<p role="status">{{ blocker }}</p>{% else %}<form method="post" action="{{ url_for('governance.issue') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">生成今日邀请</button></form>{% endif %}
+<h3>最近生成的邀请</h3><ul>{% for item in invitations %}<li>{{ item.issued_day }} · {% if item.redeemed_at %}已使用{% elif item.revoked_at %}已撤销{% elif item.expires_at <= now %}已过期{% else %}有效至 {{ item.expires_at|beijing_time }}<form method="post" action="{{ url_for('governance.revoke', invitation_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary" type="submit">撤销邀请</button></form>{% endif %}</li>{% else %}<li>尚未生成邀请。</li>{% endfor %}</ul>
+<p><a href="{{ url_for('governance.policy') }}">查看管理与微信申诉说明</a></p></section>
+{% endblock %}

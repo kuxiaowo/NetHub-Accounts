@@ -104,6 +104,15 @@ def create_app(test_config: dict | None = None) -> Flask:
     init_oauth_repository(app)
     init_oauth(app)
     app.register_blueprint(web)
+    import os
+
+    from .governance import governance, restore_expired_bans
+
+    app.config.setdefault("RESEND_API_KEY", os.getenv("RESEND_API_KEY", ""))
+    app.config.setdefault("MAIL_FROM", os.getenv("MAIL_FROM", ""))
+    app.config.setdefault("APPEAL_WECHAT_ID", os.getenv("APPEAL_WECHAT_ID", ""))
+    app.register_blueprint(governance)
+    app.before_request(restore_expired_bans)
     app.before_request(load_request_user)
     app.register_blueprint(traffic)
 

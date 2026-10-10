@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel"><h1>邀请关系与记录</h1><p>仅管理员可查看；不展示完整凭证或密钥。注销后的关系记录最多保留 180 天。</p><a href="{{ url_for('web.admin') }}">返回账号管理</a>
+<div class="table-wrap"><table><thead><tr><th>编号</th><th>邀请人</th><th>注册人</th><th>生成时间</th><th>状态</th></tr></thead><tbody>
+{% for item in items %}<tr><td>{{ item.id }}</td><td>{{ names.get(item.inviter_id, '已注销') }}</td><td>{{ names.get(item.invitee_id, '尚未兑换或已注销') }}</td><td>{{ item.created_at|beijing_time }}</td><td>{% if item.redeemed_at %}已使用{% elif item.revoked_at %}已撤销{% elif item.expires_at <= now %}已过期{% else %}有效{% endif %}</td></tr>{% else %}<tr><td colspan="5">暂无记录</td></tr>{% endfor %}
+</tbody></table></div><nav class="actions" aria-label="邀请记录分页">{% if page > 1 %}<a href="{{ url_for('governance.invitation_relations', page=page-1) }}">上一页</a>{% endif %}<span>第 {{ page }} 页</span>{% if items|length == 30 %}<a href="{{ url_for('governance.invitation_relations', page=page+1) }}">下一页</a>{% endif %}</nav></section>
+{% endblock %}

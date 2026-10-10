@@ -75,6 +75,7 @@
           <div class="account-form-actions"><button class="button" type="submit">保存资料</button></div>
         </form>
       </section>
+      <section class="panel account-panel"><h2>邮箱与邀请</h2><p>验证邮箱后可在 Wiki 发言，首次验证满 72 小时后可邀请。</p><a class="button" href="{{ url_for('governance.community') }}">管理邮箱与邀请</a></section>
       <section id="security" class="panel account-panel" aria-labelledby="security-title">
         <div class="account-section-heading"><div><h2 id="security-title">账号安全</h2><p>管理登录方式和密码。</p></div></div>
         <details class="account-disclosure password-disclosure" {% if current_user.must_change_password or (request.method == 'POST' and request.form.get('action') == 'password') %}open{% endif %}>
