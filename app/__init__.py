@@ -7,6 +7,7 @@ from .analytics import default_database_path
 from .analytics_routes import traffic
 from .avatar_gateway import AvatarGatewayClient
 from .backchannel import start_worker
+from .client_info import client_info
 from .config import Settings
 from .d1_gateway import D1GatewayClient
 from .extensions import db
@@ -115,6 +116,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.before_request(restore_expired_bans)
     app.before_request(load_request_user)
     app.register_blueprint(traffic)
+    app.register_blueprint(client_info)
 
     @app.after_request
     def security_headers(response):

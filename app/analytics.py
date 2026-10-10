@@ -7,6 +7,7 @@ no HTTP request to any of the five applications writes an analytics event.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import ipaddress
 import json
@@ -16,6 +17,8 @@ from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from .client_info import browser_id, clean_snapshot
 
 SITE_HOSTS = {
     "auth.nethub.wiki": "accounts",
@@ -38,7 +41,9 @@ CREATE TABLE IF NOT EXISTS requests (
   status INTEGER NOT NULL, duration_ms REAL NOT NULL, bytes_sent INTEGER NOT NULL,
   ip TEXT NOT NULL, edge_ip TEXT NOT NULL, user_sub TEXT NOT NULL,
   user_agent TEXT NOT NULL, referer TEXT NOT NULL, country TEXT NOT NULL,
-  ray_id TEXT NOT NULL, is_noise INTEGER NOT NULL
+  ray_id TEXT NOT NULL, is_noise INTEGER NOT NULL,
+  browser_id TEXT NOT NULL DEFAULT '', accept_language TEXT NOT NULL DEFAULT '',
+  client_hints TEXT NOT NULL DEFAULT '{}', client_info TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS ix_requests_time ON requests(occurred_at);
 CREATE INDEX IF NOT EXISTS ix_requests_site_time ON requests(site, occurred_at);
@@ -74,6 +79,22 @@ def connect(path: str | Path) -> sqlite3.Connection:
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA busy_timeout=10000")
     connection.executescript(SCHEMA)
+    connection.execute("BEGIN IMMEDIATE")
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(requests)")}
+    for name, default in (
+        ("browser_id", "''"),
+        ("accept_language", "''"),
+        ("client_hints", "'{}'"),
+        ("client_info", "'{}'"),
+    ):
+        if name not in columns:
+            connection.execute(
+                f"ALTER TABLE requests ADD COLUMN {name} TEXT NOT NULL DEFAULT {default}"
+            )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_requests_browser_time ON requests(browser_id,occurred_at)"
+    )
+    connection.commit()
     return connection
 
 
@@ -128,6 +149,29 @@ def parse_line(raw: bytes, trusted: tuple) -> dict | None:
         path = urlsplit(str(request.get("uri", "/"))).path or "/"
         edge = str(request.get("remote_ip") or request.get("client_ip") or "")
         agent = header(headers, "User-Agent")
+        snapshot = {}
+        encoded = item.get("client_info") or ""
+        if isinstance(encoded, str) and len(encoded) <= 10000:
+            try:
+                snapshot = clean_snapshot(json.loads(base64.urlsafe_b64decode(encoded)))
+            except (ValueError, TypeError, UnicodeError):
+                pass
+        hints = {
+            key: header(headers, key)
+            for key in (
+                "Sec-CH-UA",
+                "Sec-CH-UA-Mobile",
+                "Sec-CH-UA-Platform",
+                "Sec-CH-UA-Platform-Version",
+                "Sec-CH-UA-Arch",
+                "Sec-CH-UA-Bitness",
+                "Sec-CH-UA-Model",
+                "Sec-CH-UA-Full-Version-List",
+                "Sec-CH-UA-WoW64",
+                "Sec-CH-UA-Form-Factors",
+            )
+            if header(headers, key)
+        }
         sub = str(item.get("user_sub") or "")[:80]
         if sub and (len(sub) != 36 or any(char not in "0123456789abcdef-" for char in sub.lower())):
             sub = ""
@@ -154,9 +198,16 @@ def parse_line(raw: bytes, trusted: tuple) -> dict | None:
             "referer": _safe_referer(header(headers, "Referer")),
             "country": header(headers, "CF-IPCountry")[:4] if cloudflare_edge else "",
             "ray_id": header(headers, "CF-Ray")[:100] if cloudflare_edge else "",
+            "browser_id": browser_id(
+                item.get("assigned_browser_id") or item.get("browser_id") or ""
+            ),
+            "accept_language": header(headers, "Accept-Language"),
+            "client_hints": json.dumps(hints, ensure_ascii=True),
+            "client_info": json.dumps(snapshot, ensure_ascii=True),
             "is_noise": int(
                 path in NOISE_PATHS
                 or path.startswith(NOISE_PREFIXES)
+                or path.startswith("/__nethub/")
                 or any(marker in agent.casefold() for marker in BOT_MARKERS)
             ),
         }
@@ -223,9 +274,13 @@ def ingest(connection: sqlite3.Connection, log_path: str | Path, trusted: tuple)
                         duration_sum_ms=duration_sum_ms+excluded.duration_sum_ms,
                         bytes_sent=bytes_sent+excluded.bytes_sent""",
                         (
-                            bucket, entry["site"], entry["is_noise"], entry["status"] // 100,
+                            bucket,
+                            entry["site"],
+                            entry["is_noise"],
+                            entry["status"] // 100,
                             int(not entry["is_noise"] and entry["method"] == "GET"),
-                            int(entry["status"] >= 500), entry["duration_ms"],
+                            int(entry["status"] >= 500),
+                            entry["duration_ms"],
                             entry["bytes_sent"],
                         ),
                     )
@@ -262,12 +317,15 @@ def ingest_directory(db_path: str | Path, log_path: str | Path, networks_path: s
     log_path = Path(log_path)
     files = sorted(
         (
-            p for p in log_path.parent.iterdir()
-            if p.is_file() and not p.name.endswith(".gz")
-            and (p.name.startswith(log_path.name + ".")
-                 or p.name == log_path.name
-                 or (p.name.startswith(log_path.stem + "-")
-                     and p.name.endswith(log_path.suffix)))
+            p
+            for p in log_path.parent.iterdir()
+            if p.is_file()
+            and not p.name.endswith(".gz")
+            and (
+                p.name.startswith(log_path.name + ".")
+                or p.name == log_path.name
+                or (p.name.startswith(log_path.stem + "-") and p.name.endswith(log_path.suffix))
+            )
         ),
         key=lambda p: (p.stat().st_mtime, p.name),
     )
@@ -303,9 +361,14 @@ def filters(query) -> tuple[str, list, dict]:
     if query.get("all") != "1":
         conditions.append("is_noise=0")
     for key, column in (
-        ("userSub", "user_sub"), ("ip", "ip"), ("rayId", "ray_id"),
-        ("status", "status"), ("path", "path"), ("userAgent", "user_agent"),
+        ("userSub", "user_sub"),
+        ("ip", "ip"),
+        ("rayId", "ray_id"),
+        ("status", "status"),
+        ("path", "path"),
+        ("userAgent", "user_agent"),
         ("country", "country"),
+        ("browserId", "browser_id"),
     ):
         value = query.get(key)
         if value:
@@ -325,7 +388,7 @@ def _daily_filter(query) -> tuple[str, list] | None:
         return None
     if any(
         query.get(key)
-        for key in ("userSub", "ip", "rayId", "status", "path", "userAgent", "country")
+        for key in ("userSub", "ip", "rayId", "status", "path", "userAgent", "country", "browserId")
     ):
         return None
     conditions = ["day>=?", "day<=?"]
@@ -388,8 +451,7 @@ def summary(connection: sqlite3.Connection, query) -> dict:
                 day_params,
             )
         values["statuses"] = [
-            {"value": f"{item['value']}xx", "count": item["count"]}
-            for item in values["statuses"]
+            {"value": f"{item['value']}xx", "count": item["count"]} for item in values["statuses"]
         ]
         for label in ("paths", "users", "ips", "agents", "countries", "referrers", "slow"):
             values[label] = []
@@ -414,9 +476,14 @@ def summary(connection: sqlite3.Connection, query) -> dict:
         values["p95Ms"] = 0
     values["errorRate"] = values["errors"] / count if count else 0
     for label, column in (
-        ("sites", "site"), ("statuses", "status"), ("paths", "path"),
-        ("users", "user_sub"), ("ips", "ip"), ("agents", "user_agent"),
-        ("countries", "country"), ("referrers", "referer"),
+        ("sites", "site"),
+        ("statuses", "status"),
+        ("paths", "path"),
+        ("users", "user_sub"),
+        ("ips", "ip"),
+        ("agents", "user_agent"),
+        ("countries", "country"),
+        ("referrers", "referer"),
     ):
         values[label] = rows(
             connection,

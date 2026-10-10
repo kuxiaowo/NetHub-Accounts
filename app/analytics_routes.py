@@ -123,6 +123,7 @@ def export_csv():
     fields = [
         "occurred_at", "site", "host", "method", "path", "status", "duration_ms",
         "bytes_sent", "ipMasked", "user_sub", "user_agent", "referer", "country", "ray_id",
+        "browser_id", "accept_language", "client_hints", "client_info",
     ]
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()

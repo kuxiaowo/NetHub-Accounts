@@ -15,3 +15,6 @@ migration-output/
 **/.worker-build/
 **/node_modules/
 
+# Local diagnostics and deployment artifacts
+reports/
+

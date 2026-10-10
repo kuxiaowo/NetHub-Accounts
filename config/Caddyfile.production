@@ -1,4 +1,21 @@
 nethub.wiki {
+    @moderation_private path /internal/moderation /internal/moderation/*
+    handle @moderation_private {
+        respond 404
+    }
+
+    @client_info path /__nethub/client /__nethub/client.js /__nethub/privacy
+    handle @client_info {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy 127.0.0.1:3400 {
+            header_up X-Nethub-Site-Host {host}
+            header_down -X-Nethub-Client-Info
+            header_down -X-Nethub-Browser-Id
+            header_down -X-Nethub-User-Sub
+        }
+    }
     log {
         output file /var/log/caddy/access.json {
             roll_size 100MiB
@@ -20,6 +37,13 @@ nethub.wiki {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     handle /media/* {
         reverse_proxy 127.0.0.1:3100 {
@@ -63,6 +87,13 @@ www.nethub.wiki, test.nethub.wiki {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     handle /media/* {
         reverse_proxy 127.0.0.1:3100 {
@@ -73,6 +104,18 @@ www.nethub.wiki, test.nethub.wiki {
     redir https://nethub.wiki{uri} 308
 }
 auth.nethub.wiki {
+    @client_info path /__nethub/client /__nethub/client.js /__nethub/privacy
+    handle @client_info {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy 127.0.0.1:3400 {
+            header_up X-Nethub-Site-Host {host}
+            header_down -X-Nethub-Client-Info
+            header_down -X-Nethub-Browser-Id
+            header_down -X-Nethub-User-Sub
+        }
+    }
     log {
         output file /var/log/caddy/access.json {
             roll_size 100MiB
@@ -94,6 +137,13 @@ auth.nethub.wiki {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     handle /media/* {
         reverse_proxy 127.0.0.1:3100 {
@@ -107,6 +157,18 @@ auth.nethub.wiki {
     }
 }
 todolist.nethub.wiki {
+    @client_info path /__nethub/client /__nethub/client.js /__nethub/privacy
+    handle @client_info {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy 127.0.0.1:3400 {
+            header_up X-Nethub-Site-Host {host}
+            header_down -X-Nethub-Client-Info
+            header_down -X-Nethub-Browser-Id
+            header_down -X-Nethub-User-Sub
+        }
+    }
     log {
         output file /var/log/caddy/access.json {
             roll_size 100MiB
@@ -128,6 +190,13 @@ todolist.nethub.wiki {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     handle /media/* {
         reverse_proxy 127.0.0.1:3100 {
@@ -141,6 +210,18 @@ todolist.nethub.wiki {
     }
 }
 sdgj.tech {
+    @client_info path /__nethub/client /__nethub/client.js /__nethub/privacy
+    handle @client_info {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy 127.0.0.1:3400 {
+            header_up X-Nethub-Site-Host {host}
+            header_down -X-Nethub-Client-Info
+            header_down -X-Nethub-Browser-Id
+            header_down -X-Nethub-User-Sub
+        }
+    }
     log {
         output file /var/log/caddy/access.json {
             roll_size 100MiB
@@ -162,6 +243,13 @@ sdgj.tech {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     reverse_proxy 127.0.0.1:5000 {
         header_up -X-Nethub-User-Sub
@@ -190,10 +278,34 @@ www.sdgj.tech {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     redir https://sdgj.tech{uri} 308
 }
 codex.nethub.wiki {
+    @moderation_private path /internal/moderation /internal/moderation/*
+    handle @moderation_private {
+        respond 404
+    }
+
+    @client_info path /__nethub/client /__nethub/client.js /__nethub/privacy
+    handle @client_info {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy 127.0.0.1:3400 {
+            header_up X-Nethub-Site-Host {host}
+            header_down -X-Nethub-Client-Info
+            header_down -X-Nethub-Browser-Id
+            header_down -X-Nethub-User-Sub
+        }
+    }
     log {
         output file /var/log/caddy/access.json {
             roll_size 100MiB
@@ -215,6 +327,13 @@ codex.nethub.wiki {
     }
     request_header -X-Nethub-User-Sub
     log_append user_sub {rp.header.X-Nethub-User-Sub}
+    log_append browser_id {http.request.cookie.nethub_browser}
+    log_append assigned_browser_id {rp.header.X-Nethub-Browser-Id}
+    log_append client_info {rp.header.X-Nethub-Client-Info}
+    request_header -X-Nethub-Site-Host
+    request_header -X-Nethub-Client-Info
+    request_header -X-Nethub-Browser-Id
+    header Accept-CH "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors"
     encode zstd gzip
     handle /media/* {
         reverse_proxy 127.0.0.1:3100 {
