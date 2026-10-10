@@ -104,9 +104,16 @@ function renderEvents(data) {
       event.ip || event.ipMasked, `${event.method} ${event.path}`, event.status,
       `${Math.round(event.duration_ms)} ms`, event.ray_id || "—"];
     values.forEach((value, index) => tr.append(node("td", index === 5 && event.status >= 500 ? "status-error" : "", value)));
+    const cell = node("td");
+    const details = node("details");
+    details.append(node("summary", "", event.browser_id ? event.browser_id.slice(0, 8) : "客户端信息"));
+    const info = {browserId: event.browser_id || null, userAgent: event.user_agent,
+      acceptLanguage: event.accept_language, clientHints: JSON.parse(event.client_hints || "{}"), snapshot: JSON.parse(event.client_info || "{}")};
+    details.append(node("pre", "", JSON.stringify(info, null, 2)));
+    cell.append(details); tr.append(cell);
     body.append(tr);
   }
-  if (!data.events.length) {const tr = node("tr"); const td = node("td", "empty-note", "此筛选条件下没有请求"); td.colSpan = 8; tr.append(td); body.append(tr);}
+  if (!data.events.length) {const tr = node("tr"); const td = node("td", "empty-note", "此筛选条件下没有请求"); td.colSpan = 9; tr.append(td); body.append(tr);}
   document.querySelector("#event-count").textContent = `共 ${number(data.total)} 条`;
   document.querySelector("#page-label").textContent = `${currentPage} / ${Math.max(1, Math.ceil(data.total / data.pageSize))}`;
   document.querySelector("#prev-page").disabled = currentPage <= 1;

@@ -19,6 +19,7 @@
     <label>状态码<input name="status" type="number" min="100" max="599" placeholder="例如 500"></label>
     <label>国家或地区<input name="country" maxlength="4" placeholder="例如 CN"></label>
     <label>User-Agent<input name="userAgent" placeholder="精确匹配"></label>
+    <label>浏览器标识<input name="browserId" placeholder="随机标识，仅作关联线索"></label>
     <label class="check"><input type="checkbox" name="all" value="1"> 显示全部请求</label>
     <button class="button" type="submit">查询</button>
   </form>
@@ -37,7 +38,7 @@
       <section class="analytics-card"><h2>User-Agent</h2><div id="agent-list"></div></section>
       <section class="analytics-card wide"><h2>慢请求</h2><div class="table-wrap"><table><thead><tr><th>网站</th><th>路径</th><th>状态</th><th>耗时</th></tr></thead><tbody id="slow-table"></tbody></table></div></section>
     </div>
-    <section class="analytics-card event-card"><div class="card-heading"><div><h2>请求时间线</h2><p>点击用户或 IP，可查看该对象的请求。</p></div><span id="event-count"></span></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>网站</th><th>用户</th><th>IP</th><th>请求</th><th>状态</th><th>耗时</th><th>Ray ID</th></tr></thead><tbody id="event-table"></tbody></table></div><div class="pagination"><button id="prev-page" type="button" class="button secondary">上一页</button><span id="page-label"></span><button id="next-page" type="button" class="button secondary">下一页</button></div></section>
+    <section class="analytics-card event-card"><div class="card-heading"><div><h2>请求时间线</h2><p>点击用户或 IP，可查看该对象的请求。客户端快照请勾选“显示全部请求”；所有客户端值均为自报信息。</p></div><span id="event-count"></span></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>网站</th><th>用户</th><th>IP</th><th>请求</th><th>状态</th><th>耗时</th><th>Ray ID</th><th>客户端信息</th></tr></thead><tbody id="event-table"></tbody></table></div><div class="pagination"><button id="prev-page" type="button" class="button secondary">上一页</button><span id="page-label"></span><button id="next-page" type="button" class="button secondary">下一页</button></div></section>
   </div>
 </div>
 {% endblock %}
