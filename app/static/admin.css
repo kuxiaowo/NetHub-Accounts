@@ -27,6 +27,149 @@
   min-width: 180px;
 }
 
+.restriction-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-width: calc(100% - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 24px 80px rgba(20, 33, 61, .2);
+}
+
+.restriction-dialog::backdrop {
+  background: rgba(20, 33, 61, .45);
+}
+
+body.restriction-dialog-open {
+  overflow: hidden;
+}
+
+.restriction-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.restriction-dialog-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.restriction-close {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--muted);
+  font: inherit;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.restriction-user {
+  margin: 8px 0 24px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.restriction-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.restriction-field select,
+.restriction-field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.restriction-field textarea {
+  min-height: 132px;
+  resize: vertical;
+}
+
+.restriction-field[hidden] {
+  display: none;
+}
+
+.restriction-effect {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--brand);
+  border-radius: 4px;
+  background: #eef3ff;
+  font-size: 14px;
+}
+
+.restriction-effect.is-danger {
+  border-color: var(--danger);
+  background: #fee4e2;
+  color: #912018;
+}
+
+.restriction-reason-help {
+  margin: -6px 0 0;
+}
+
+.restriction-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.restriction-dialog :focus-visible,
+[data-restriction-url]:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .restriction-dialog {
+    padding: 16px;
+  }
+
+  .restriction-dialog form {
+    gap: 12px;
+  }
+
+  .restriction-user {
+    margin: 4px 0 16px;
+    font-size: 14px;
+  }
+
+  .restriction-field textarea {
+    min-height: 104px;
+  }
+
+  .restriction-dialog-actions {
+    margin-top: 0;
+    padding-top: 14px;
+  }
+
+  .restriction-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   .admin-users-table {
     min-width: 960px;

@@ -107,7 +107,8 @@ class AuthorizationCodeGrantImpl(AuthorizationCodeGrant):
         oauth_repository().delete_authorization_code(authorization_code)
 
     def authenticate_user(self, authorization_code):
-        return oauth_repository().get_user(authorization_code.user_id)
+        user = oauth_repository().get_user(authorization_code.user_id)
+        return user if user and user.is_active and not user.merged_into_user_id else None
 
 
 class OpenIDCodeImpl(OpenIDCode):

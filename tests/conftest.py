@@ -39,6 +39,8 @@ def app(tmp_path, monkeypatch):
             "SESSION_COOKIE_SECURE": False,
             "REGISTRATION_ENABLED": True,
             "AVATAR_UPLOAD_DIR": tmp_path / "avatars",
+            "RESEND_API_KEY": "test-resend-key",
+            "MAIL_FROM": "test@example.test",
         }
     )
     with application.app_context():

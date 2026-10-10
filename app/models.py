@@ -49,6 +49,13 @@ class User(TimestampMixin, db.Model):
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     terms_accepted_at: Mapped[datetime | None]
     merged_into_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    email: Mapped[str | None] = mapped_column(String(254), unique=True)
+    email_verified_at: Mapped[datetime | None]
+    first_email_verified_at: Mapped[datetime | None]
+    invitation_suspended_until: Mapped[datetime | None]
+    invitation_suspended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    banned_until: Mapped[datetime | None]
+    ban_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     aliases: Mapped[list[LoginAlias]] = relationship(
         back_populates="user", cascade="all, delete-orphan", foreign_keys="LoginAlias.user_id"
@@ -201,3 +208,43 @@ class BackchannelJob(db.Model):
     next_attempt_at: Mapped[datetime] = mapped_column(default=utc_now, index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=utc_now, nullable=False)
     delivered_at: Mapped[datetime | None]
+
+
+class Invitation(db.Model):
+    __tablename__ = "invitations"
+    __table_args__ = (UniqueConstraint("inviter_id", "issued_day"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    inviter_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    detached_at: Mapped[datetime | None]
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    issued_day: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(nullable=False)
+    revoked_at: Mapped[datetime | None]
+    redeemed_at: Mapped[datetime | None]
+    invitee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), unique=True)
+
+
+class EmailVerification(db.Model):
+    __tablename__ = "_private_email_verifications"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(nullable=False)
+    consumed_at: Mapped[datetime | None]
+
+
+class EmailJob(db.Model):
+    __tablename__ = "_private_email_jobs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    verification_id: Mapped[int] = mapped_column(
+        ForeignKey("_private_email_verifications.id", ondelete="CASCADE"), unique=True
+    )
+    payload_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    lease_until: Mapped[datetime | None]
+    next_attempt_at: Mapped[datetime] = mapped_column(default=utc_now, nullable=False)
+    error_code: Mapped[str] = mapped_column(String(64), default="", nullable=False)

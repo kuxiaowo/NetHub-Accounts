@@ -20,6 +20,15 @@ from tests.conftest import client_secret_hash, create_user, csrf_from
 
 
 def register(client, username="Alice", password="password-123"):
+    from app.governance import create_invitation
+
+    with client.application.app_context():
+        inviter = create_user("inviter-" + __import__("secrets").token_hex(6))
+        inviter.email = inviter.username + "@example.test"
+        inviter.email_verified_at = utc_now() - timedelta(days=4)
+        inviter.first_email_verified_at = inviter.email_verified_at
+        db.session.commit()
+        _, invitation = create_invitation(inviter.id)
     page = client.get("/register")
     return client.post(
         "/register",
@@ -27,6 +36,8 @@ def register(client, username="Alice", password="password-123"):
             "csrf_token": csrf_from(page),
             "username": username,
             "display_name": "Alice Example",
+            "email": __import__("secrets").token_hex(8) + "@example.test",
+            "invite": invitation,
             "password": password,
             "confirm_password": password,
             "accept_terms": "yes",
@@ -74,7 +85,7 @@ def test_registration_normalizes_username_and_uses_argon2(app, client):
     response = register(client, "Ａlice")
     assert response.status_code == 302
     with app.app_context():
-        user = db.session.scalar(select(User))
+        user = db.session.scalar(select(User).where(User.username_key == "alice"))
         assert user.username == "Alice"
         assert user.username_key == "alice"
         assert PASSWORD_HASH.verify("password-123", user.password_hash)
@@ -246,49 +257,23 @@ def test_admin_can_merge_accounts_and_preserve_memberships(app, client):
     assert login(merged_browser, "old-name", "target-password").status_code == 302
 
 
-def test_admin_can_create_disable_and_restore_account(app, client):
+def test_admin_can_ban_restore_and_legacy_creation_is_closed(app, client):
     with app.app_context():
         create_user("admin", admin=True)
+        managed_id = create_user("managed-user", "temporary-123").id
     assert login(client, "admin").status_code == 302
-    page = client.get("/admin")
-    created = client.post(
-        "/admin/users/create",
-        data={
-            "csrf_token": csrf_from(page),
-            "username": "managed-user",
-            "display_name": "Managed User",
-            "password": "temporary-123",
-        },
-    )
-    assert created.status_code == 302
-    with app.app_context():
-        managed = db.session.scalar(select(User).where(User.username_key == "managed-user"))
-        managed_id = managed.id
-        assert managed.must_change_password is True
-
-    page = client.get("/admin")
-    assert (
-        client.post(
-            f"/admin/users/{managed_id}/toggle",
-            data={"csrf_token": csrf_from(page)},
-        ).status_code
-        == 302
-    )
-    with app.app_context():
-        assert db.session.get(User, managed_id).is_active is False
-    assert login(app.test_client(), "managed-user", "temporary-123").status_code == 401
-
-    page = client.get("/admin")
-    assert (
-        client.post(
-            f"/admin/users/{managed_id}/toggle",
-            data={"csrf_token": csrf_from(page)},
-        ).status_code
-        == 302
-    )
-    with app.app_context():
-        assert db.session.get(User, managed_id).is_active is True
-    assert login(app.test_client(), "managed-user", "temporary-123").status_code == 302
+    assert client.post("/admin/users/create").status_code == 404
+    assert client.post(f"/admin/users/{managed_id}/toggle").status_code == 404
+    for action, active in [("ban", False), ("unban", True)]:
+        page = client.get("/admin")
+        response = client.post(f"/admin/users/{managed_id}/restriction", data={
+            "csrf_token": csrf_from(page), "action": action, "reason": "测试处理", "days": "0",
+        })
+        assert response.status_code == 302
+        with app.app_context():
+            assert db.session.get(User, managed_id).is_active is active
+        expected = 302 if active else 401
+        assert login(app.test_client(), "managed-user", "temporary-123").status_code == expected
 
 
 def test_admin_users_are_paginated_and_memberships_are_batch_loaded(app, client):

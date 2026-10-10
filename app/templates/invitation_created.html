@@ -1,0 +1,1 @@
+{% extends "base.html" %}{% block content %}<section class="panel"><h1>邀请已生成</h1><p>请复制并妥善保存；完整凭证只展示这一次，有效至 {{ expires|beijing_time }}。</p><label>邀请链接<input readonly value="{{ link }}" aria-label="邀请链接"></label><a href="{{ url_for('governance.community') }}">返回邀请管理</a></section>{% endblock %}

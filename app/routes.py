@@ -40,6 +40,7 @@ from .models import (
     AppMembership,
     AuditLog,
     BackchannelJob,
+    Invitation,
     LegacyCredential,
     LoginAlias,
     OAuth2Client,
@@ -254,61 +255,32 @@ def register():
         if password != request.form.get("confirm_password", ""):
             flash("两次输入的密码不一致。", "error")
             return render_template("register.html", disabled=False), 400
+        from .governance import normalize_email, redeem_invitation, request_verification, write_lock
+        if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "sqlite":
+            abort(503, "邀请注册需要 SQLite 主库")
         try:
-            backend = current_app.config.get("ACCOUNTS_DATABASE_BACKEND", "sqlite")
-            if backend != "d1":
-                user = _create_user(
-                    request.form.get("username", ""), request.form.get("display_name", ""), password
-                )
+            email = normalize_email(request.form.get("email", ""))
+            if (
+                not current_app.config.get("RESEND_API_KEY")
+                or not current_app.config.get("MAIL_FROM")
+            ):
+                raise ValueError("邮件验证服务尚未配置，请联系管理员")
+            with write_lock():
+                user = _create_user(request.form.get("username", ""),
+                                    request.form.get("display_name", ""), password)
+                user.email = email
+                redeem_invitation(request.form.get("invite", ""), user)
                 record_rate_event("register", subject, True)
                 audit("auth.register", target=user)
                 session, raw_token = create_web_session(user)
-                db.session.commit()
-            else:
-                username, username_key = normalize_username(request.form.get("username", ""))
-                display_name = request.form.get("display_name", "").strip()
-                if not display_name or len(display_name) > 80:
-                    raise ValueError("显示名称需要在 1-80 个字符之间")
-                now = utc_now()
-                raw_token = secrets.token_urlsafe(48)
-                session_values = {
-                    "sid": secrets.token_urlsafe(27)[:36],
-                    "token_hash": token_digest(raw_token),
-                    "csrf_token": secrets.token_urlsafe(32),
-                    "auth_time": int(now.timestamp()),
-                    "created_at": now,
-                    "last_seen_at": now,
-                    "idle_expires_at": now
-                    + timedelta(seconds=current_app.config["SESSION_IDLE_SECONDS"]),
-                    "absolute_expires_at": now
-                    + timedelta(seconds=current_app.config["SESSION_ABSOLUTE_SECONDS"]),
-                }
-                values = {
-                    "username": username,
-                    "username_key": username_key,
-                    "display_name": display_name,
-                    "password_hash": hash_password(password),
-                    "terms_accepted_at": now,
-                }
-                account_repository().register(values, session_values, ip=subject)
-        except AccountConflictError as exc:
-            record_rate_event("register", subject, False)
-            flash(str(exc), "error")
-            return render_template("register.html", disabled=False), 409
-        except ValueError as exc:
-            if backend != "d1":
-                db.session.rollback()
-            record_rate_event("register", subject, False)
-            if backend != "d1":
-                db.session.commit()
-            flash(str(exc), "error")
-            return render_template("register.html", disabled=False), 400
-        except IntegrityError:
+                request_verification(user.id, email, locked=True)
+        except (ValueError, IntegrityError, AccountConflictError) as exc:
             db.session.rollback()
             record_rate_event("register", subject, False)
             db.session.commit()
-            flash("用户名已存在。", "error")
-            return render_template("register.html", disabled=False), 409
+            flash(str(exc) if isinstance(exc, ValueError) else "用户名或邮箱已存在", "error")
+            status = 400 if isinstance(exc, ValueError) else 409
+            return render_template("register.html", disabled=False), status
         response = continue_after_form(next_url or url_for("web.account"))
         set_session_cookie(response, raw_token)
         return response
@@ -646,95 +618,6 @@ def admin():
     )
 
 
-@web.post("/admin/users/create")
-@admin_required
-def admin_create_user():
-    require_csrf()
-    record_admin_action("admin.create_user_attempt")
-    try:
-        if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
-            username, username_key = normalize_username(request.form.get("username", ""))
-            display_name = request.form.get("display_name", "").strip()
-            if not display_name or len(display_name) > 80:
-                raise ValueError("显示名称需要在 1-80 个字符之间")
-            admin_repository().create_user(
-                {
-                    "username": username,
-                    "username_key": username_key,
-                    "display_name": display_name,
-                    "password_hash": hash_password(request.form.get("password", "")),
-                    "is_system_admin": request.form.get("is_system_admin") == "yes",
-                },
-                actor_id=g.current_user.id,
-                ip=client_ip(),
-            )
-        else:
-            user = _create_user(
-                request.form.get("username", ""),
-                request.form.get("display_name", ""),
-                request.form.get("password", ""),
-                admin=request.form.get("is_system_admin") == "yes",
-            )
-            user.must_change_password = True
-            audit("admin.user_created", target=user)
-            db.session.commit()
-        flash("账号已创建，首次登录必须修改密码。", "success")
-    except (ValueError, IntegrityError, AccountConflictError) as exc:
-        if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "d1":
-            db.session.rollback()
-        flash(
-            "无法创建账号："
-            + (str(exc) if isinstance(exc, (ValueError, AccountConflictError)) else "用户名已存在"),
-            "error",
-        )
-    return redirect(url_for("web.admin"))
-
-
-@web.post("/admin/users/<int:user_id>/toggle")
-@admin_required
-def admin_toggle_user(user_id: int):
-    require_csrf()
-    record_admin_action("admin.toggle_user_attempt")
-    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
-        repository = account_repository()
-        target = repository.get_user(user_id)
-        if target is None:
-            abort(404)
-        if target.id == g.current_user.id:
-            abort(409, "不能停用自己的账号")
-        if target.is_system_admin and target.is_active and repository.active_admin_count() <= 1:
-            abort(409, "不能停用最后一个系统管理员")
-        new_active = not bool(target.is_active)
-        if not repository.set_user_active(
-            target.id, bool(target.is_active), new_active, g.current_user.id, client_ip()
-        ):
-            abort(409, "账号状态已被其他管理员修改")
-        target.is_active = new_active
-        if not new_active:
-            queue_logout(target, "account_disabled")
-        flash("账号状态已更新。", "success")
-        return redirect(url_for("web.admin"))
-    target = db.get_or_404(User, user_id)
-    if target.id == g.current_user.id:
-        abort(409, "不能停用自己的账号")
-    if target.is_system_admin and target.is_active:
-        admin_count = db.session.scalar(
-            select(func.count(User.id)).where(
-                User.is_system_admin.is_(True), User.is_active.is_(True)
-            )
-        )
-        if int(admin_count or 0) <= 1:
-            abort(409, "不能停用最后一个系统管理员")
-    target.is_active = not target.is_active
-    if not target.is_active:
-        revoke_user_access(target.id)
-        queue_logout(target, "account_disabled")
-    audit("admin.user_toggled", target=target, details={"isActive": target.is_active})
-    db.session.commit()
-    flash("账号状态已更新。", "success")
-    return redirect(url_for("web.admin"))
-
-
 @web.post("/admin/users/<int:user_id>/reset-password")
 @admin_required
 def admin_reset_password(user_id: int):
@@ -818,6 +701,15 @@ def admin_delete_user(user_id: int):
     target_sub = target.sub
     target_username = target.username
     avatar_filename = target.avatar_file
+    for invitation in db.session.scalars(select(Invitation).where(
+        (Invitation.inviter_id == target.id) | (Invitation.invitee_id == target.id)
+    )):
+        invitation.detached_at = utc_now()
+        if invitation.inviter_id == target.id:
+            invitation.inviter_id = None
+            invitation.revoked_at = invitation.revoked_at or utc_now()
+        if invitation.invitee_id == target.id:
+            invitation.invitee_id = None
     for log in db.session.scalars(
         select(AuditLog).where(
             (AuditLog.actor_user_id == target.id) | (AuditLog.target_user_id == target.id)
@@ -900,6 +792,10 @@ def admin_merge_users():
     source.is_system_admin = False
     source.is_active = False
     source.merged_into_user_id = target.id
+    for invitation in db.session.scalars(select(Invitation).where(
+        Invitation.inviter_id == source.id, Invitation.redeemed_at.is_(None)
+    )):
+        invitation.revoked_at = invitation.revoked_at or utc_now()
     audit("admin.users_merged", target=target, details={"sourceSub": source.sub})
     db.session.commit()
     flash("账号已经合并；来源账号已停用。", "success")

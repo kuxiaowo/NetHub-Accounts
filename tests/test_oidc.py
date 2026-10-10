@@ -459,8 +459,13 @@ def test_admin_disable_immediately_revokes_user_access_tokens(app, client):
     login(client, "admin")
     admin_page = client.get("/admin")
     response = client.post(
-        f"/admin/users/{target_id}/toggle",
-        data={"csrf_token": csrf_from(admin_page)},
+        f"/admin/users/{target_id}/restriction",
+        data={
+            "csrf_token": csrf_from(admin_page),
+            "action": "ban",
+            "reason": "违规测试",
+            "days": "0",
+        },
     )
     assert response.status_code == 302
     assert (

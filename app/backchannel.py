@@ -72,6 +72,7 @@ def start_worker(app) -> None:
         return
 
     def run() -> None:
+        next_retention = 0
         while True:
             time.sleep(app.config["BACKCHANNEL_POLL_SECONDS"])
             try:
@@ -80,6 +81,11 @@ def start_worker(app) -> None:
 
                     cleanup_expired()
                     deliver_pending_jobs()
+                    from .governance import cleanup_records, deliver_email_jobs
+                    deliver_email_jobs()
+                    if time.monotonic() >= next_retention:
+                        cleanup_records()
+                        next_retention = time.monotonic() + 86400
             except Exception:
                 app.logger.exception("back-channel logout worker failed")
 

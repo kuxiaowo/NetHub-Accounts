@@ -11,6 +11,9 @@
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ request.values.get('next', '') }}">
+    <label>邀请凭证<input name="invite" value="{{ request.values.get('invite', '') }}" required maxlength="128" autocomplete="off"></label>
+    <label>邮箱<input type="email" name="email" required maxlength="254" autocomplete="email"></label>
+    <p class="field-help">注册须使用邀请凭证；邮箱验证后才能在 Wiki 发言。</p>
     <label>用户名<input name="username" minlength="2" maxlength="32" autocomplete="username" required autofocus></label>
     <p class="field-help">可使用文字、数字、下划线、点和连字符；注册后不可自行修改。</p>
     <label>显示名称<input name="display_name" maxlength="80" required></label>
