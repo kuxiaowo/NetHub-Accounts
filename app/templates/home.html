@@ -1,52 +1,26 @@
 {% extends "base.html" %}
 {% block title %}NetHub Accounts{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css') }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='2') }}">{% endblock %}
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">UNIFIED ACCOUNT</p>
-  <h1>统一账号可使用的网站</h1>
-  <p>TodoList、TechX心情晴雨表、Campus Wiki、Codex笔记中心。</p>
-  {% if not current_user %}
-    <div class="actions">
-      <a class="button" href="{{ url_for('web.login') }}">登录</a>
-      {% if registration_enabled %}<a class="button secondary" href="{{ url_for('web.register') }}">创建账号</a>{% endif %}
-    </div>
-  {% endif %}
-</section>
 
-<section>
-  <div class="section-heading">
-    <h2>应用</h2>
-    {% if current_user %}<span>{{ memberships|length }} 个已使用</span>{% endif %}
+  <h1>{{ t("一个账号，连接校园。") }}</h1>
+  <p>{{ t("管理资料，访问你的应用。") }}</p>
+  <div class="actions">
+    {% if current_user %}<a class="button" href="{{ url_for('web.account') }}">{{ t("管理账号") }}</a><a class="button secondary" href="{{ url_for('governance.community') }}">{{ t("邮箱与邀请") }}</a>
+    {% else %}<a class="button" href="{{ url_for('web.login') }}">{{ t("登录") }}</a>{% if registration_enabled %}<a class="button secondary" href="{{ url_for('web.register') }}">{{ t("创建账号") }}</a>{% endif %}{% endif %}
   </div>
+</section>
+<section aria-labelledby="apps-title">
+  <div class="section-heading"><h2 id="apps-title">{{ t("应用") }}</h2>{% if current_user %}<span class="muted">{{ t('{count} 个已使用', count=memberships|length) }}</span>{% endif %}</div>
   <div class="app-grid">
     {% for client in clients %}
       {% set meta = home_client_meta.get(client.client_id, {}) %}
       <article class="app-card">
-        <div class="app-card-copy">
-          <div>
-            <h3>{{ meta.get("name", client.client_name or client.client_id) }}</h3>
-            <p>{{ "已关联" if client.client_id in memberships else "尚未使用" }}</p>
-          </div>
-          {% if client.launch_uri %}<a class="button small" href="{{ client.launch_uri }}">打开</a>{% endif %}
-        </div>
-        {% if client.launch_uri %}
-          <a class="app-preview" href="{{ client.launch_uri }}" aria-label="打开{{ meta.get('name', client.client_name or client.client_id) }}">
-            {% if meta.get("preview") %}
-              <img src="{{ url_for('static', filename=meta['preview']) }}" alt="{{ meta.get('preview_alt', '') }}" loading="lazy">
-            {% else %}
-              <span>暂无网页预览</span>
-            {% endif %}
-          </a>
-        {% else %}
-          <div class="app-preview" aria-hidden="true">
-            {% if meta.get("preview") %}<img src="{{ url_for('static', filename=meta['preview']) }}" alt="" loading="lazy">{% else %}<span>暂无网页预览</span>{% endif %}
-          </div>
-        {% endif %}
+        {% if meta.get('preview') %}<div class="app-preview" aria-hidden="true"><img src="{{ url_for('static', filename=meta['preview']) }}" alt="" loading="lazy"></div>{% endif %}
+        <div class="app-card-copy"><div><h3>{{ t(meta['name']) if meta.get('name') else client.client_name or client.client_id }}</h3><p>{{ t('已关联') if client.client_id in memberships else t('尚未使用') }}</p></div>{% if client.launch_uri %}<a class="button secondary small" href="{{ client.launch_uri }}">{{ t("打开") }} <span aria-hidden="true">↗</span></a>{% endif %}</div>
       </article>
-    {% else %}
-      <div class="empty">应用尚未接入。账号中心可以先独立部署和测试。</div>
-    {% endfor %}
+    {% else %}<div class="empty">{{ t("暂无可用应用。") }}</div>{% endfor %}
   </div>
 </section>
 {% endblock %}

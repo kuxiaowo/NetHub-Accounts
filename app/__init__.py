@@ -11,6 +11,7 @@ from .client_info import client_info
 from .config import Settings
 from .d1_gateway import D1GatewayClient
 from .extensions import db
+from .i18n import init_i18n
 from .oauth_repository import init_oauth_repository
 from .oidc import init_oauth, signing_key_id
 from .routes import web
@@ -71,6 +72,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     )
     if test_config:
         app.config.update(test_config)
+
+    init_i18n(app)
 
     if app.config["AVATAR_STORAGE_BACKEND"] == "r2":
         app.extensions["avatar_gateway_client"] = AvatarGatewayClient(

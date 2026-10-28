@@ -36,6 +36,7 @@ from .avatars import (
 )
 from .backchannel import deliver_pending_jobs, queue_logout
 from .extensions import authorization, db
+from .i18n import translate
 from .models import (
     AppMembership,
     AuditLog,
@@ -680,7 +681,7 @@ def admin_delete_user(user_id: int):
         if error:
             abort(409, "账号状态已变化，请刷新后重试")
         delete_avatar_file(target, target.avatar_file)
-        flash(f"账号 {target.username} 已永久删除。", "success")
+        flash(translate("账号 {username} 已永久删除。", username=target.username), "success")
         return redirect(url_for("web.admin"))
     target = db.get_or_404(User, user_id)
     if target.id == g.current_user.id:
@@ -726,7 +727,7 @@ def admin_delete_user(user_id: int):
     db.session.delete(target)
     db.session.commit()
     delete_avatar_file(target, avatar_filename)
-    flash(f"账号 {target_username} 已永久删除。", "success")
+    flash(translate("账号 {username} 已永久删除。", username=target_username), "success")
     return redirect(url_for("web.admin"))
 
 
@@ -819,7 +820,14 @@ def admin_backchannel():
         require_csrf()
         record_admin_action("admin.retry_backchannel")
         result = deliver_pending_jobs(50)
-        flash(f"退出通知：成功 {result['delivered']}，失败 {result['failed']}。", "success")
+        flash(
+            translate(
+                "退出通知：成功 {delivered}，失败 {failed}。",
+                delivered=result["delivered"],
+                failed=result["failed"],
+            ),
+            "success",
+        )
         return redirect(url_for("web.admin_backchannel"))
     if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
         jobs = admin_repository().backchannel_jobs()

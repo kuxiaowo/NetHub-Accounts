@@ -19,6 +19,7 @@ from flask import (
     current_app,
     flash,
     g,
+    has_request_context,
     jsonify,
     redirect,
     render_template,
@@ -55,7 +56,12 @@ governance = Blueprint("governance", __name__)
 
 @governance.app_template_filter("beijing_time")
 def beijing_time(value):
-    return (value + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M（北京时间）") if value else "—"
+    suffix = (
+        " (UTC+08:00)"
+        if has_request_context() and getattr(g, "language", "zh") == "en"
+        else "（北京时间）"
+    )
+    return (value + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M") + suffix if value else "—"
 
 
 @governance.cli.command("cleanup")

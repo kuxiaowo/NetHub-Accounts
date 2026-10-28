@@ -96,7 +96,7 @@ def test_health(client):
     assert client.get("/health").get_json() == {"status": "ok"}
 
 
-def test_home_uses_named_single_column_app_previews(app, client):
+def test_home_uses_named_app_previews(app, client):
     with app.app_context():
         db.session.add_all(
             [

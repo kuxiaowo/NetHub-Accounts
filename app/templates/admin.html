@@ -1,51 +1,51 @@
 {% extends "base.html" %}
-{% block title %}管理 · NetHub Accounts{% endblock %}
+{% block title %}{{ t("管理 · NetHub Accounts") }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css', v='restriction-dialog-1') }}">{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>账号管理</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('traffic.page') }}">访问分析</a><a class="button secondary" href="{{ url_for('web.admin_audit') }}">审计日志</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">退出通知{% if failed_jobs %} · {{ failed_jobs }} 失败{% endif %}</a></div></div>
-<section class="panel"><h2>邀请注册</h2><a class="button secondary" href="{{ url_for('governance.invitation_relations') }}">查看邀请关系</a><p>普通账号须凭邀请注册；新管理员由受控初始化命令管理。</p></section>
+<div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>{{ t("账号管理") }}</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('traffic.page') }}">{{ t("访问分析") }}</a><a class="button secondary" href="{{ url_for('web.admin_audit') }}">{{ t("审计日志") }}</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">{{ t("退出通知") }}{% if failed_jobs %} · {{ failed_jobs }} {{ t("失败") }}{% endif %}</a></div></div>
+<section class="panel"><h2>{{ t("邀请注册") }}</h2><a class="button secondary" href="{{ url_for('governance.invitation_relations') }}">{{ t("查看邀请关系") }}</a><p>{{ t("普通账号须凭邀请注册；新管理员由受控初始化命令管理。") }}</p></section>
 <section class="panel">
-  <h2>用户 <span class="muted">共 {{ total_users }} 个</span></h2>
-  <div class="table-wrap"><table class="admin-users-table"><thead><tr><th>ID</th><th>用户名</th><th>显示名称</th><th>已使用网站</th><th>状态</th><th>临时密码</th><th>操作</th></tr></thead><tbody>
+  <h2>{{ t("用户") }} <span class="muted">{{ t("共") }} {{ total_users }} {{ t("个") }}</span></h2>
+  <div class="table-wrap"><table class="admin-users-table"><thead><tr><th>ID</th><th>{{ t("用户名") }}</th><th>{{ t("显示名称") }}</th><th>{{ t("已使用网站") }}</th><th>{{ t("状态") }}</th><th>{{ t("临时密码") }}</th><th>{{ t("操作") }}</th></tr></thead><tbody>
   {% for user in users %}<tr>
-    <td>{{ user.id }}</td><td>{{ user.username }}{% if user.is_system_admin %} <span class="badge">系统管理员</span>{% endif %}</td><td>{{ user.display_name }}</td><td class="user-sites">{{ membership_map.get(user.id, [])|join("、") or "-" }}</td><td class="user-status">{{ "启用" if user.is_active else "停用" }}{% if user.merged_into_user_id %} / 已合并{% endif %}</td>
-    <td><form method="post" action="{{ url_for('web.admin_reset_password', user_id=user.id) }}" class="inline-form password-reset-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="compact" type="password" name="temporary_password" minlength="8" required><button class="button tiny" type="submit">重置</button></form></td>
-    <td><button class="button tiny secondary" type="button" data-restriction-url="{{ url_for('governance.restrict', user_id=user.id) }}" data-user-id="{{ user.id }}" data-username="{{ user.username }}" data-display-name="{{ user.display_name }}" aria-haspopup="dialog" aria-controls="restriction-dialog">账号限制</button>
-    <p class="field-help">邮箱：{{ '已验证' if user.email_verified_at else '未验证' }}；邀请：{{ '已暂停' if user.invitation_suspended else '正常' }}</p>
-    {% if not user.is_active and not user.merged_into_user_id %}<form method="post" action="{{ url_for('web.admin_delete_user', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny danger" type="submit" data-confirm="永久删除该停用账号？此操作不可恢复。">永久删除</button></form>{% endif %}</td>
+    <td>{{ user.id }}</td><td>{{ user.username }}{% if user.is_system_admin %} <span class="badge">{{ t("系统管理员") }}</span>{% endif %}</td><td>{{ user.display_name }}</td><td class="user-sites">{{ membership_map.get(user.id, [])|join("、") or "-" }}</td><td class="user-status">{{ t("启用") if user.is_active else t("停用") }}{% if user.merged_into_user_id %} {{ t("/ 已合并") }}{% endif %}</td>
+    <td><form method="post" action="{{ url_for('web.admin_reset_password', user_id=user.id) }}" class="inline-form password-reset-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="compact" type="password" name="temporary_password" minlength="8" required><button class="button tiny" type="submit">{{ t("重置") }}</button></form></td>
+    <td><button class="button tiny secondary" type="button" data-restriction-url="{{ url_for('governance.restrict', user_id=user.id) }}" data-user-id="{{ user.id }}" data-username="{{ user.username }}" data-display-name="{{ user.display_name }}" aria-haspopup="dialog" aria-controls="restriction-dialog">{{ t("账号限制") }}</button>
+    <p class="field-help">{{ t("邮箱：") }}{{ t('已验证') if user.email_verified_at else t('未验证') }}{{ t("；邀请：") }}{{ t('已暂停') if user.invitation_suspended else t('正常') }}</p>
+    {% if not user.is_active and not user.merged_into_user_id %}<form method="post" action="{{ url_for('web.admin_delete_user', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button tiny danger" type="submit" data-confirm="{{ t("永久删除该停用账号？此操作不可恢复。") }}">{{ t("永久删除") }}</button></form>{% endif %}</td>
   </tr>{% endfor %}
   </tbody></table></div>
-  {% if total_pages > 1 %}<nav class="actions" aria-label="用户列表分页">
-    {% if page > 1 %}<a class="button tiny secondary" href="{{ url_for('web.admin', page=page - 1, per_page=per_page) }}">上一页</a>{% endif %}
-    <span class="muted">第 {{ page }} / {{ total_pages }} 页</span>
-    {% if page < total_pages %}<a class="button tiny secondary" href="{{ url_for('web.admin', page=page + 1, per_page=per_page) }}">下一页</a>{% endif %}
+  {% if total_pages > 1 %}<nav class="actions" aria-label="{{ t("用户列表分页") }}">
+    {% if page > 1 %}<a class="button tiny secondary" href="{{ url_for('web.admin', page=page - 1, per_page=per_page) }}">{{ t("上一页") }}</a>{% endif %}
+    <span class="muted">{{ t("第") }} {{ page }} / {{ total_pages }} {{ t("页") }}</span>
+    {% if page < total_pages %}<a class="button tiny secondary" href="{{ url_for('web.admin', page=page + 1, per_page=per_page) }}">{{ t("下一页") }}</a>{% endif %}
   </nav>{% endif %}
 </section>
 <dialog id="restriction-dialog" class="restriction-dialog" aria-labelledby="restriction-title" aria-describedby="restriction-user">
-  <div class="restriction-dialog-heading"><h2 id="restriction-title">账号限制</h2><button class="restriction-close" type="button" data-close-restriction aria-label="关闭账号限制表单">×</button></div>
+  <div class="restriction-dialog-heading"><h2 id="restriction-title">{{ t("账号限制") }}</h2><button class="restriction-close" type="button" data-close-restriction aria-label="{{ t("关闭账号限制表单") }}">×</button></div>
   <p id="restriction-user" class="restriction-user"></p>
   <form id="restriction-form" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="restriction-options">
-      <label class="restriction-field" for="restriction-action">操作
-        <select id="restriction-action" name="action" autofocus><option value="suspend_invitation">暂停邀请</option><option value="restore_invitation">恢复邀请</option><option value="ban">全站封禁</option><option value="unban">解除全站封禁</option></select>
+      <label class="restriction-field" for="restriction-action">{{ t("操作") }}
+        <select id="restriction-action" name="action" autofocus><option value="suspend_invitation">{{ t("暂停邀请") }}</option><option value="restore_invitation">{{ t("恢复邀请") }}</option><option value="ban">{{ t("全站封禁") }}</option><option value="unban">{{ t("解除全站封禁") }}</option></select>
       </label>
-      <label id="restriction-duration" class="restriction-field" for="restriction-days">限制期限
-        <select id="restriction-days" name="days"><option value="0">永久</option><option value="1">1 天</option><option value="7">7 天</option><option value="30">30 天</option></select>
+      <label id="restriction-duration" class="restriction-field" for="restriction-days">{{ t("限制期限") }}
+        <select id="restriction-days" name="days"><option value="0">{{ t("永久") }}</option><option value="1">{{ t("1 天") }}</option><option value="7">{{ t("7 天") }}</option><option value="30">{{ t("30 天") }}</option></select>
       </label>
     </div>
     <p id="restriction-effect" class="restriction-effect" role="status"></p>
-    <label class="restriction-field" for="restriction-reason">处理原因（必填）
-      <textarea id="restriction-reason" name="reason" rows="4" required minlength="1" maxlength="500" aria-describedby="restriction-reason-help" placeholder="例如：多次邀请广告账号，暂停邀请权限"></textarea>
+    <label class="restriction-field" for="restriction-reason">{{ t("处理原因（必填）") }}
+      <textarea id="restriction-reason" name="reason" rows="4" required minlength="1" maxlength="500" aria-describedby="restriction-reason-help" placeholder="{{ t("例如：多次邀请广告账号，暂停邀请权限") }}"></textarea>
     </label>
-    <p id="restriction-reason-help" class="field-help restriction-reason-help">填写 1–500 字，说明本次限制或恢复的依据。原因会保存到审计记录。</p>
-    <div class="restriction-dialog-actions"><button class="button secondary" type="button" data-close-restriction>取消</button><button id="restriction-submit" class="button" type="submit">暂停邀请</button></div>
+    <p id="restriction-reason-help" class="field-help restriction-reason-help">{{ t("填写 1–500 字，说明本次限制或恢复的依据。原因会保存到审计记录。") }}</p>
+    <div class="restriction-dialog-actions"><button class="button secondary" type="button" data-close-restriction>{{ t("取消") }}</button><button id="restriction-submit" class="button" type="submit">{{ t("暂停邀请") }}</button></div>
   </form>
 </dialog>
 <section class="panel">
-  <h2>合并重复账号</h2><p class="muted">来源账号的登录名、旧凭据和网站关系会转移到目标账号，来源账号随后停用。</p>
-  <form method="post" action="{{ url_for('web.admin_merge_users') }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>来源用户 ID<input type="number" name="source_user_id" min="1" required></label><label>目标用户 ID<input type="number" name="target_user_id" min="1" required></label><button class="button danger" type="submit">确认合并</button></form>
+  <h2>{{ t("合并重复账号") }}</h2><p class="muted">{{ t("来源账号的登录名、旧凭据和网站关系会转移到目标账号，来源账号随后停用。") }}</p>
+  <form method="post" action="{{ url_for('web.admin_merge_users') }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>{{ t("来源用户 ID") }}<input type="number" name="source_user_id" min="1" required></label><label>{{ t("目标用户 ID") }}<input type="number" name="target_user_id" min="1" required></label><button class="button danger" type="submit">{{ t("确认合并") }}</button></form>
 </section>
-<section class="panel"><h2>OIDC 客户端</h2><table><thead><tr><th>Client ID</th><th>名称</th><th>状态</th></tr></thead><tbody>{% for client in clients %}<tr><td class="mono">{{ client.client_id }}</td><td>{{ client.client_name }}</td><td>{{ "启用" if client.is_active else "停用" }}</td></tr>{% else %}<tr><td colspan="3">尚未注册客户端。</td></tr>{% endfor %}</tbody></table></section>
+<section class="panel"><h2>{{ t("OIDC 客户端") }}</h2><table><thead><tr><th>Client ID</th><th>{{ t("名称") }}</th><th>{{ t("状态") }}</th></tr></thead><tbody>{% for client in clients %}<tr><td class="mono">{{ client.client_id }}</td><td>{{ client.client_name }}</td><td>{{ t("启用") if client.is_active else t("停用") }}</td></tr>{% else %}<tr><td colspan="3">{{ t("尚未注册客户端。") }}</td></tr>{% endfor %}</tbody></table></section>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='admin.js', v='restriction-dialog-1') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='admin.js', v='restriction-dialog-2') }}" defer></script>{% endblock %}

@@ -1,47 +1,57 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="{{ 'en' if language == 'en' else 'zh-CN' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script src="{{ url_for('static', filename='ui-translations.js', v='1') }}"></script>
+  <script src="{{ url_for('static', filename='preferences.js', v='1') }}"></script>
   <script src="/__nethub/client.js?v=1" defer></script>
   <title>{% block title %}NetHub Accounts{% endblock %}</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='brand/favicon.svg') }}">
+  <link rel="alternate icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='brand/favicon-32.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css', v='2') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='avatar.css', v='cropper2') }}">
   <script src="{{ url_for('static', filename='avatar-fallback.js') }}" defer></script>
   {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='1') }}">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">{{ t("跳到内容") }}</a>
   <header class="site-header">
-    <a class="brand" href="{{ url_for('web.home') }}">NetHub <span>Accounts</span></a>
-    <nav>
+    <a class="brand" href="{{ url_for('web.home') }}" aria-label="NetHub Accounts">
+      <img class="brand-mark brand-mark-light" src="{{ url_for('static', filename='brand/nethub-mark.svg') }}" alt="" width="32" height="32">
+      <img class="brand-mark brand-mark-dark" src="{{ url_for('static', filename='brand/nethub-mark-light.svg') }}" alt="" width="32" height="32">
+      <strong>NetHub</strong><span>Accounts</span>
+    </a>
+    <nav aria-label="{{ t("主导航") }}">
       {% if current_user %}
         <a class="nav-account" href="{{ url_for('web.account') }}">
-          <span class="avatar avatar-small" data-avatar-fallback="{{ current_user.display_name[:1]|upper }}">
-            <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="">
-          </span>
-          <span>{{ current_user.display_name }}</span>
+          <span class="avatar avatar-small" data-avatar-fallback="{{ current_user.display_name[:1]|upper }}"><img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt=""></span>
+          <span class="nav-display-name">{{ current_user.display_name }}</span>
         </a>
-        {% if current_user.is_system_admin %}<a href="{{ url_for('web.admin') }}">管理</a>{% endif %}
+        {% if current_user.is_system_admin %}<a href="{{ url_for('web.admin') }}">{{ t("管理") }}</a>{% endif %}
         <form action="{{ url_for('web.logout') }}" method="post" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="link-button" type="submit">退出账号中心</button>
+          <button class="link-button" type="submit">{{ t("退出") }}</button>
         </form>
       {% else %}
-        <a href="{{ url_for('web.login') }}">登录</a>
-        {% if registration_enabled %}<a href="{{ url_for('web.register') }}">注册</a>{% endif %}
+        <a href="{{ url_for('web.login') }}">{{ t("登录") }}</a>
+        {% if registration_enabled %}<a href="{{ url_for('web.register') }}">{{ t("注册") }}</a>{% endif %}
       {% endif %}
+      <span class="header-preferences">
+        <a class="preference-control language-toggle" href="{{ language_url('zh' if language == 'en' else 'en') }}" hreflang="{{ 'zh-CN' if language == 'en' else 'en' }}" aria-label="{{ t('切换到中文') if language == 'en' else 'Switch to English' }}">{{ t('中文') if language == 'en' else 'EN' }}</a>
+        <button class="preference-control theme-toggle" type="button" data-theme-toggle aria-label="{{ t("切换深浅主题") }}" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+      </span>
     </nav>
   </header>
-  <main class="container">
+  <main class="container" id="main-content">
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="flash {{ category }}">{{ message }}</div>
-      {% endfor %}
+      {% for category, message in messages %}<div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ t(message) }}</div>{% endfor %}
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
-  <footer>一个账号，按需使用 NetHub 服务。各网站权限仍由各网站管理。</footer>
+  <footer><span>{{ t("一个账号，连接 NetHub。") }}</span><a href="{{ url_for('governance.policy') }}">{{ t("账号与隐私") }}</a></footer>
   {% block scripts %}{% endblock %}
 </body>
 </html>

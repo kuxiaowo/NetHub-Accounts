@@ -1,20 +1,20 @@
 {% extends "base.html" %}
-{% block title %}登录 · NetHub Accounts{% endblock %}
+{% block title %}{{ t("登录 · NetHub Accounts") }}{% endblock %}
 {% block head %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endblock %}
 {% block content %}
 <section class="auth-card">
-  <p class="eyebrow">SIGN IN</p>
-  <h1>登录 NetHub</h1>
-  <p>迁移用户可以继续使用原 TodoList 或 TechX 用户名与密码。</p>
+
+  <h1>{{ t("登录 NetHub") }}</h1>
+  <p>{{ t("可使用原 TodoList / TechX 账号登录。") }}</p>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ request.values.get('next', '') }}">
-    <label>用户名<input name="username" autocomplete="username" required autofocus></label>
-    <label>密码<input type="password" name="password" autocomplete="current-password" required></label>
-    <div class="cf-turnstile" data-sitekey="{{ config.TURNSTILE_SITE_KEY }}" data-action="login"></div>
-    <button class="button full" type="submit">登录</button>
+    <label>{{ t("用户名") }}<input name="username" autocomplete="username" required autofocus></label>
+    <label>{{ t("密码") }}<input type="password" name="password" autocomplete="current-password" required></label>
+    <div class="cf-turnstile" data-language="{{ 'en' if language == 'en' else 'zh-cn' }}" data-sitekey="{{ config.TURNSTILE_SITE_KEY }}" data-action="login"></div>
+    <button class="button full" type="submit">{{ t("登录") }}</button>
   </form>
-  {% if registration_enabled %}<p class="muted">还没有账号？<a href="{{ url_for('web.register', next=request.values.get('next', '')) }}">注册</a></p>{% endif %}
+  {% if registration_enabled %}<p class="muted">{{ t("还没有账号？") }}<a href="{{ url_for('web.register', next=request.values.get('next', '')) }}">{{ t("注册") }}</a></p>{% endif %}
 </section>
 {% endblock %}
 

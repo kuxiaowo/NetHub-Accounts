@@ -1,12 +1,34 @@
 {% extends "base.html" %}
-{% block title %}邮箱与邀请 · NetHub Accounts{% endblock %}
+{% block title %}{{ t("邮箱与邀请 · NetHub Accounts") }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='account.css', v='2') }}">{% endblock %}
 {% block content %}
-<section class="panel"><h1>邮箱与邀请</h1><a href="{{ url_for('web.account') }}">返回个人中心</a>
-<h2>邮箱验证</h2><p>{{ current_user.email or '尚未绑定邮箱' }} · {{ '已验证' if current_user.email_verified_at else '未验证' }}</p>
-{% if delivery %}<p role="status">最近验证邮件：{{ {'pending':'等待发送','sending':'正在发送','sent':'已发送，请检查收件箱和垃圾邮件','failed':'发送失败，请稍后重新申请或联系管理员'}.get(delivery.status, '状态未知') }}</p>{% endif %}
-<form method="post" action="{{ url_for('governance.email_request') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>邮箱<input type="email" name="email" value="{{ current_user.email or '' }}" maxlength="254" required></label><button class="button" type="submit">发送验证邮件</button></form>
-<h2>邀请朋友</h2><p>每天北京时间最多生成一个单次凭证，有效期 7 天。撤销不返还额度。</p>
-{% if blocker %}<p role="status">{{ blocker }}</p>{% else %}<form method="post" action="{{ url_for('governance.issue') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">生成今日邀请</button></form>{% endif %}
-<h3>最近生成的邀请</h3><ul>{% for item in invitations %}<li>{{ item.issued_day }} · {% if item.redeemed_at %}已使用{% elif item.revoked_at %}已撤销{% elif item.expires_at <= now %}已过期{% else %}有效至 {{ item.expires_at|beijing_time }}<form method="post" action="{{ url_for('governance.revoke', invitation_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary" type="submit">撤销邀请</button></form>{% endif %}</li>{% else %}<li>尚未生成邀请。</li>{% endfor %}</ul>
-<p><a href="{{ url_for('governance.policy') }}">查看管理与微信申诉说明</a></p></section>
+<div class="account-page">
+  <header class="account-heading"><h1>{{ t("邮箱与邀请") }}</h1></header>
+  <div class="account-layout">
+    <aside class="account-sidebar"><nav class="account-nav" aria-label="{{ t("账号设置导航") }}"><a href="{{ url_for('web.account') }}">{{ t("个人资料") }}</a><a href="{{ url_for('governance.community') }}" aria-current="page">{{ t("邮箱与邀请") }}</a><a href="{{ url_for('web.account') }}#security">{{ t("账号安全") }}</a><a href="{{ url_for('web.account') }}#websites">{{ t("关联应用") }}</a></nav><a class="account-home-link" href="{{ url_for('web.home') }}">{{ t("返回首页") }}</a></aside>
+    <div class="account-sections">
+      <section class="panel account-panel" aria-labelledby="email-title">
+        <div class="account-section-heading"><h2 id="email-title">{{ t("邮箱验证") }}</h2><span class="status-badge {{ 'verified' if current_user.email_verified_at else 'pending' }}">{{ t('已验证') if current_user.email_verified_at else t('未验证') }}</span></div>
+        <form method="post" action="{{ url_for('governance.email_request') }}" class="email-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>{{ t("邮箱地址") }}<input type="email" name="email" value="{{ current_user.email or '' }}" maxlength="254" autocomplete="email" required></label>
+          <button class="button" type="submit">{{ t("发送验证邮件") }}</button>
+        </form>
+        <p class="field-help">{{ t("验证后可在 Wiki 发言。链接 24 小时有效。") }}</p>
+        <p class="field-help">{{ t("重发间隔 60 秒，每日最多 5 次。") }}</p>
+        {% if delivery %}<p class="delivery-status" role="status">{{ t({'pending':'等待发送','sending':'正在发送','sent':'已发送，请检查收件箱和垃圾邮件','failed':'发送失败，请稍后重试'}.get(delivery.status, '状态未知')) }}</p>{% endif %}
+      </section>
+      <section class="panel account-panel" aria-labelledby="invite-title">
+        <div class="account-section-heading"><h2 id="invite-title">{{ t("邀请朋友") }}</h2>{% if blocker %}<span class="status-badge">{{ t("尚未开启") }}</span>{% endif %}</div>
+        <div class="invitation-facts"><div><strong>{{ t("每日 1 份") }}</strong><span>{{ t("北京时间零点重置") }}</span></div><div><strong>{{ t("7 天有效") }}</strong><span>{{ t("每份仅可使用一次") }}</span></div><div><strong>{{ t("验证满 72 小时") }}</strong><span>{{ t("首次验证后开启") }}</span></div></div>
+        {% if blocker %}<p class="field-help" role="status">{{ t(blocker) }}</p><button class="button" type="button" disabled>{{ t("生成今日邀请") }}</button>{% else %}<form method="post" action="{{ url_for('governance.issue') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div><button class="button" type="submit">{{ t("生成今日邀请") }}</button></div></form>{% endif %}
+        <p class="field-help">{{ t("撤销邀请不返还当日额度。") }}</p>
+      </section>
+      <section class="panel account-panel" aria-labelledby="history-title"><div class="account-section-heading"><h2 id="history-title">{{ t("邀请记录") }}</h2></div>
+        <ul class="invitation-list">{% for item in invitations %}<li><time>{{ item.issued_day }}</time><span>{% if item.redeemed_at %}{{ t("已使用") }}{% elif item.revoked_at %}{{ t("已撤销") }}{% elif item.expires_at <= now %}{{ t("已过期") }}{% else %}{{ t('有效至 {date}', date=item.expires_at|beijing_time) }}{% endif %}</span>{% if not item.redeemed_at and not item.revoked_at and item.expires_at > now %}<form method="post" action="{{ url_for('governance.revoke', invitation_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary small" type="submit">{{ t("撤销") }}</button></form>{% endif %}</li>{% else %}<li class="muted">{{ t("尚未生成邀请。") }}</li>{% endfor %}</ul>
+        <a class="policy-link" href="{{ url_for('governance.policy') }}">{{ t("管理与申诉说明") }}</a>
+      </section>
+    </div>
+  </div>
+</div>
 {% endblock %}
