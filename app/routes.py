@@ -257,7 +257,7 @@ def register():
             return render_template("register.html", disabled=False), 400
         from .governance import normalize_email, redeem_invitation, request_verification, write_lock
         if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "sqlite":
-            abort(503, "邀请注册需要 SQLite 主库")
+            abort(503, "注册需要 SQLite 主库")
         try:
             email = normalize_email(request.form.get("email", ""))
             if (
@@ -269,7 +269,8 @@ def register():
                 user = _create_user(request.form.get("username", ""),
                                     request.form.get("display_name", ""), password)
                 user.email = email
-                redeem_invitation(request.form.get("invite", ""), user)
+                if current_app.config["REGISTRATION_MODE"] != "open":
+                    redeem_invitation(request.form.get("invite", ""), user)
                 record_rate_event("register", subject, True)
                 audit("auth.register", target=user)
                 session, raw_token = create_web_session(user)
