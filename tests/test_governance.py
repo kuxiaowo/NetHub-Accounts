@@ -61,8 +61,12 @@ def test_verification_get_does_not_consume_and_post_is_one_time(app, client):
     assert client.post(path, data={"csrf_token": csrf_from(page)}).status_code == 400
 
 
-def test_registration_without_invite_never_creates_account(app, client):
+@pytest.mark.parametrize("mode", ["invite", "open"])
+def test_registration_without_invite(app, client, mode):
+    if mode == "open":
+        app.config["REGISTRATION_MODE"] = "open"
     page = client.get("/register")
+    assert ('name="invite"' in page.text) == (mode == "invite")
     response = client.post(
         "/register",
         data={
@@ -75,10 +79,69 @@ def test_registration_without_invite_never_creates_account(app, client):
             "accept_terms": "yes",
         },
     )
-    assert response.status_code == 400
     with app.app_context():
-        assert db.session.scalar(select(User)) is None
-        assert db.session.scalar(select(EmailJob)) is None
+        user = db.session.scalar(select(User))
+        job = db.session.scalar(select(EmailJob))
+        if mode == "open":
+            assert response.status_code == 302
+            assert user.email == "test@example.test" and user.email_verified_at is None
+            assert job.status == "pending"
+            assert db.session.scalar(select(Invitation)) is None
+        else:
+            assert response.status_code == 400
+            assert user is None and job is None
+
+
+def test_old_link_does_not_consume_invitation_during_open_registration(app, client):
+    with app.test_request_context():
+        owner = eligible()
+        item, token = create_invitation(owner.id)
+        invitation_id = item.id
+
+    app.config["REGISTRATION_MODE"] = "open"
+    path = "/register?invite=" + token
+    form = {
+        "csrf_token": csrf_from(client.get(path)),
+        "username": "newcomer",
+        "display_name": "Newcomer",
+        "email": "newcomer@example.test",
+        "password": "password-123",
+        "confirm_password": "password-123",
+        "accept_terms": "yes",
+        "invite": token,
+    }
+    assert client.post(path, data=form).status_code == 302
+    with app.app_context():
+        item = db.session.get(Invitation, invitation_id)
+        assert item.redeemed_at is None and item.invitee_id is None
+
+    app.config["REGISTRATION_MODE"] = "invite"
+    other = app.test_client()
+    form.update(
+        csrf_token=csrf_from(other.get(path)), username="invitee", email="other@example.test"
+    )
+    assert other.post(path, data=form).status_code == 302
+    with app.app_context():
+        item = db.session.get(Invitation, invitation_id)
+        assert db.session.get(User, item.invitee_id).username == "invitee"
+
+
+def test_open_mode_pauses_invitation_issuance_until_restored(app, client):
+    from tests.test_accounts import login
+
+    with app.test_request_context():
+        eligible()
+    assert login(client).status_code == 302
+    app.config["REGISTRATION_MODE"] = "open"
+    page = client.get("/account/community")
+    assert "邀请功能已暂停" in page.text and "生成今日邀请" not in page.text
+    form = {"csrf_token": csrf_from(page)}
+    client.post("/account/invitations", data=form)
+    with app.app_context():
+        assert db.session.scalar(select(Invitation)) is None
+
+    app.config["REGISTRATION_MODE"] = "invite"
+    assert "邀请已生成" in client.post("/account/invitations", data=form).text
 
 
 def test_failed_invitation_registration_counts_toward_rate_limit(app, client):

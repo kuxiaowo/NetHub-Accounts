@@ -108,6 +108,8 @@ def normalize_email(value: str) -> str:
 
 
 def invitation_blocker(user: User, now=None) -> str:
+    if current_app.config["REGISTRATION_MODE"] == "open":
+        return "邀请功能已暂停"
     now = now or utc_now()
     if not user.is_active or user.merged_into_user_id:
         return "账号已封禁或停用"
