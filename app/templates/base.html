@@ -13,7 +13,7 @@
   <script src="{{ url_for('static', filename='avatar-fallback.js') }}" defer></script>
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='preferences.css', v='1') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='2') }}" data-layout-sheet="modern" media="not all">
+  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='ivory-charcoal') }}" data-layout-sheet="modern" media="not all">
   <script src="{{ url_for('static', filename='preferences.js', v='2') }}"></script>
 </head>
 <body>
@@ -26,18 +26,18 @@
     </a>
     <nav aria-label="{{ t("主导航") }}">
       {% if current_user %}
-        <a class="nav-account" aria-label="{{ t('个人资料') }} · {{ current_user.display_name }}" href="{{ url_for('web.account') }}">
+        <a class="nav-account" aria-label="{{ t('个人资料') }} · {{ current_user.display_name }}" href="{{ url_for('web.account') }}"{% if request.endpoint == 'web.account' %} aria-current="page"{% endif %}>
           <span class="avatar avatar-small" data-avatar-fallback="{{ current_user.display_name[:1]|upper }}"><img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt=""></span>
           <span class="nav-display-name">{{ current_user.display_name }}</span>
         </a>
-        {% if current_user.is_system_admin %}<a href="{{ url_for('web.admin') }}">{{ t("管理") }}</a>{% endif %}
+        {% if current_user.is_system_admin %}<a href="{{ url_for('web.admin') }}"{% if request.endpoint == 'web.admin' %} aria-current="page"{% endif %}>{{ t("管理") }}</a>{% endif %}
         <form action="{{ url_for('web.logout') }}" method="post" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="link-button" type="submit">{{ t("退出") }}</button>
         </form>
       {% else %}
-        <a href="{{ url_for('web.login') }}">{{ t("登录") }}</a>
-        {% if registration_enabled %}<a href="{{ url_for('web.register') }}">{{ t("注册") }}</a>{% endif %}
+        <a href="{{ url_for('web.login') }}"{% if request.endpoint == 'web.login' %} aria-current="page"{% endif %}>{{ t("登录") }}</a>
+        {% if registration_enabled %}<a href="{{ url_for('web.register') }}"{% if request.endpoint == 'web.register' %} aria-current="page"{% endif %}>{{ t("注册") }}</a>{% endif %}
       {% endif %}
       <div class="header-preferences">
         {% block language_switch %}<a class="preference-control language-toggle" href="{{ language_url('zh' if language == 'en' else 'en') }}" hreflang="{{ 'zh-CN' if language == 'en' else 'en' }}" aria-label="{{ t('切换到中文') if language == 'en' else 'Switch to English' }}">{{ t('中文') if language == 'en' else 'EN' }}</a>{% endblock %}
@@ -54,7 +54,7 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
-  <footer><span class="classic-only">{{ t("一个账号，按需使用 NetHub 服务。各网站权限仍由各网站管理。") }}</span><span class="modern-only">{{ t("一个账号，连接 NetHub。") }}</span><a href="{{ url_for('governance.policy') }}">{{ t("账号与隐私") }}</a></footer>
+  <footer><span class="classic-only">{{ t("一个账号，按需使用 NetHub 服务。各网站权限仍由各网站管理。") }}</span><span class="modern-only">{{ t("一个账号，连接 NetHub。") }}</span><a href="{{ url_for('governance.policy') }}"{% if request.endpoint == 'governance.policy' %} aria-current="page"{% endif %}>{{ t("账号与隐私") }}</a></footer>
   {% block scripts %}{% endblock %}
 </body>
 </html>
