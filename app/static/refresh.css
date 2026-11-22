@@ -425,10 +425,7 @@ footer a {
   --soft:#224347;
   --line:rgb(151 205 203 / 21%);
   border-color:var(--line);
-  background:linear-gradient(105deg, #182139, #142a36 54%, #123936)
-}
-:root[data-theme="dark"] body > footer {
-  background:linear-gradient(105deg, #11192c, #11222d 54%, #102d2c)
+  background:#142d34
 }
 :root[data-theme="dark"] .site-header .preference-control {
   background-color:rgb(224 248 244 / 5%)
