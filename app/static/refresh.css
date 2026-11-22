@@ -5,6 +5,7 @@
   --muted:#536071;
   --line:#ccd3de;
   --paper:#fff;
+  --site-bar-bg:#fff;
   --bg:#f7f8fa;
   --brand:#3157d5;
   --soft:#edf1ff;
@@ -27,6 +28,7 @@
   --muted:#b0bdcf;
   --line:#47556b;
   --paper:#1b222d;
+  --site-bar-bg:#000;
   --bg:#11151c;
   --brand:#a9c7ff;
   --soft:#293957;
@@ -114,7 +116,7 @@ button,a,input,select,textarea,summary {
   min-height:76px;
   padding:14px max(24px,calc((100% - 1120px)/2));
   gap:22px;
-  background:var(--paper);
+  background:var(--site-bar-bg);
   border-bottom:1px solid var(--line)
 }
 .brand {
@@ -410,7 +412,7 @@ footer {
   justify-content:center;
   gap:22px;
   border-top:1px solid var(--line);
-  background:var(--paper);
+  background:var(--site-bar-bg);
   font-size:12px;
   padding:20px 24px;
   color:var(--muted)
@@ -424,8 +426,7 @@ footer a {
   --brand:#a2e7da;
   --soft:#224347;
   --line:rgb(151 205 203 / 21%);
-  border-color:var(--line);
-  background:#142d34
+  border-color:var(--line)
 }
 :root[data-theme="dark"] .site-header .preference-control {
   background-color:rgb(224 248 244 / 5%)
