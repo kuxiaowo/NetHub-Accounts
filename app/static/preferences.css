@@ -1,0 +1,70 @@
+/* Use the original layout until a visitor explicitly selects the redesign. */
+:root:not([data-ui="modern"]) .modern-only,
+:root:not([data-ui="modern"]) .brand-mark,
+:root[data-ui="modern"] .classic-only,
+[hidden] {
+  display: none !important;
+}
+
+:root:not([data-ui="modern"]) .skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -5rem;
+}
+:root:not([data-ui="modern"]) .skip-link:focus {
+  top: .5rem;
+  z-index: 2;
+  background: var(--paper);
+}
+.header-preferences {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.header-preferences form { display: inline-flex; }
+.preference-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--brand);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+:root:not([data-ui="modern"]) .nav-display-name {
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root:not([data-ui="modern"]) footer a { margin-inline-start: .75em; }
+
+/* The classic community page groups these sections in one panel. */
+:root:not([data-ui="modern"]) .community-page {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+}
+:root:not([data-ui="modern"]) .community-page .account-sidebar { display: none; }
+:root:not([data-ui="modern"]) .community-page .account-layout,
+:root:not([data-ui="modern"]) .community-page .account-sections { display: block; }
+:root:not([data-ui="modern"]) .community-page .account-panel {
+  padding: 0;
+  margin: 24px 0 0;
+  border: 0;
+  box-shadow: none;
+}
+:root:not([data-ui="modern"]) .invitation-facts { display: flex; flex-wrap: wrap; gap: .5em 1.5em; }
+:root:not([data-ui="modern"]) .invitation-facts span { margin-inline-start: .5em; }
+
+@media (max-width: 760px) {
+  .site-header { height: auto; min-height: 68px; flex-wrap: wrap; gap: 8px; padding-block: 10px; }
+  .site-header nav { flex-wrap: wrap; margin-inline-start: auto; gap: 8px; }
+  .nav-display-name { display: none; }
+}

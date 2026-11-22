@@ -14,7 +14,7 @@
     // Lock before navigating: a pending navigation must not issue another code.
     navigating = true;
     continuation.disabled = true;
-    continuation.textContent = "正在返回…";
+    continuation.textContent = (window.nethubT || ((text) => text))("正在返回…");
     window.location.replace(destination);
   }
 

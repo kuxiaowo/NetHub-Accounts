@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ error.code }} · NetHub Accounts{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <p class="eyebrow">{{ error.code }}</p>
+  <h1>{{ t('请求未完成') }}</h1>
+  <p>{{ t(error_message) }}</p>
+  <a class="button secondary" href="{{ url_for('web.account') if current_user else url_for('web.login') }}">{{ t('返回账号') }}</a>
+</section>
+{% endblock %}

@@ -210,7 +210,7 @@ def test_login_ends_form_navigation_before_oauth_callback_redirect(app, client):
     assert b"/oauth/authorize?" in response.data
     assert b'http-equiv="refresh"' not in response.data
     assert b"<noscript>" in response.data
-    assert b"continue.js?v=auth2" in response.data
+    assert b"continue.js?v=auth3" in response.data
     destination = re.search(rb'data-destination="([^"]+)"', response.data)
     assert destination
     assert html.unescape(destination.group(1).decode()) == authorization_path

@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  const t = window.nethubT || ((text) => text);
 
   const root = document.querySelector('[data-avatar-editor]');
   if (!root) return;
@@ -77,12 +78,12 @@
     const version = ++loadVersion;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       input.value = '';
-      setStatus('请选择 JPEG、PNG 或 WebP 图片。', true);
+      setStatus(t('请选择 JPEG、PNG 或 WebP 图片。'), true);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       input.value = '';
-      setStatus('源图片不能超过 5 MiB。', true);
+      setStatus(t('源图片不能超过 5 MiB。'), true);
       return;
     }
     const reader = new FileReader();
@@ -97,7 +98,7 @@
       zoomWrap.hidden = false;
       saveButton.disabled = false;
       if (fileName) fileName.textContent = file.name;
-      setStatus('图片已载入，可拖动和缩放调整圆框选区。');
+      setStatus(t('图片已载入，可拖动和缩放调整圆框选区。'));
       render();
     };
     candidate.onerror = () => {
@@ -105,7 +106,7 @@
       image = null;
       input.value = '';
       saveButton.disabled = true;
-      setStatus('无法读取这张图片，请换一张重试。', true);
+      setStatus(t('无法读取这张图片，请换一张重试。'), true);
     };
     reader.onload = () => {
       if (version !== loadVersion || typeof reader.result !== 'string') return;
@@ -116,7 +117,7 @@
       image = null;
       input.value = '';
       saveButton.disabled = true;
-      setStatus('无法读取这张图片，请换一张重试。', true);
+      setStatus(t('无法读取这张图片，请换一张重试。'), true);
     };
     reader.readAsDataURL(file);
   }
@@ -163,7 +164,7 @@
     if (!image) return;
     event.preventDefault();
     saveButton.disabled = true;
-    setStatus('正在生成并压缩头像…');
+    setStatus(t('正在生成并压缩头像…'));
     const output = document.createElement('canvas');
     output.width = 512;
     output.height = 512;
@@ -181,7 +182,7 @@
     output.toBlob((blob) => {
       if (!blob) {
         saveButton.disabled = false;
-        setStatus('浏览器无法生成裁剪结果，请换一个浏览器重试。', true);
+        setStatus(t('浏览器无法生成裁剪结果，请换一个浏览器重试。'), true);
         return;
       }
       try {
@@ -190,7 +191,7 @@
         input.files = transfer.files;
       } catch (_) {
         saveButton.disabled = false;
-        setStatus('浏览器不支持提交裁剪结果，请升级浏览器后重试。', true);
+        setStatus(t('浏览器不支持提交裁剪结果，请升级浏览器后重试。'), true);
         return;
       }
       HTMLFormElement.prototype.submit.call(form);

@@ -1,0 +1,53 @@
+(() => {
+  const messages = {
+  "5xx 错误率": "5xx error rate",
+  "P95 耗时": "P95 duration",
+  "{bucket}：{count} 次": "{bucket}: {count} requests",
+  "{count} {unit} · 当前筛选范围": "{count} {unit} · selected range",
+  "例如：多次邀请广告账号，暂停邀请权限": "For example: repeated spam invitations",
+  "例如：多次骚扰其他成员，经核实后封禁": "For example: verified repeated harassment",
+  "例如：申诉核实通过，恢复邀请权限": "For example: appeal approved; restore invitations",
+  "例如：申诉核实通过，解除全站封禁": "For example: appeal approved; remove the ban",
+  "先点击「显示完整 IP」，再选择 IP。": "Select Show full IP address before choosing an IP.",
+  "全站封禁": "Ban across sites",
+  "共 {count} 条": "{count} records",
+  "匿名": "Anonymous",
+  "图片已载入，可拖动和缩放调整圆框选区。": "Image loaded. Drag or zoom to adjust the crop.",
+  "天": "days",
+  "客户端信息": "Client information",
+  "小时": "hours",
+  "已读取 {count} 条请求；IP 默认掩码，导出也使用掩码。": "{count} requests loaded. IP addresses are masked, including in exports.",
+  "恢复账号使用资格；用户需要重新登录，已撤销的邀请不会恢复。": "Restore account access. The user must sign in again. Revoked invitations remain invalid.",
+  "恢复邀请": "Restore invitations",
+  "撤销该账号的登录会话与令牌，通知各站退出，并撤销尚未使用的邀请。": "Revoke sessions, tokens and unused invitations, and notify connected apps to sign out.",
+  "无法读取这张图片，请换一张重试。": "This image could not be read. Try another image.",
+  "日聚合共 {count} 条请求；30 天以外的用户、IP 和 P95 明细已按保留期清理。": "{count} requests in daily summaries. User, IP and P95 details older than 30 days have been removed.",
+  "显示完整 IP": "Show full IP address",
+  "暂停期间不能生成邀请；该账号尚未使用的邀请将被撤销，恢复权限后也不会重新生效。": "New invitations are blocked. Unused invitations are revoked and will not be restored.",
+  "暂停邀请": "Suspend invitations",
+  "暂无数据": "No data",
+  "未知": "Unknown",
+  "查询失败：HTTP {status}": "Request failed: HTTP {status}",
+  "正在查询…": "Loading…",
+  "正在生成并压缩头像…": "Preparing your avatar…",
+  "正在返回…": "Taking you back…",
+  "此筛选条件下没有请求": "No requests match these filters.",
+  "浏览器不支持提交裁剪结果，请升级浏览器后重试。": "Your browser cannot submit the crop. Update it and try again.",
+  "浏览器无法生成裁剪结果，请换一个浏览器重试。": "The crop could not be created. Try another browser.",
+  "源图片不能超过 5 MiB。": "The source image must be 5 MiB or smaller.",
+  "独立 IP": "Unique IPs",
+  "独立用户": "Unique users",
+  "直接访问": "Direct",
+  "解除全站封禁": "Remove site-wide ban",
+  "解除邀请权限暂停；生成邀请仍须满足邮箱验证、72 小时等待及每日额度要求。": "Restore invitation access. Email verification, the 72-hour wait and daily limits still apply.",
+  "请填写处理原因，不能只输入空格。": "Enter a reason, not only spaces.",
+  "请求数": "Requests",
+  "请选择 JPEG、PNG 或 WebP 图片。": "Choose a JPEG, PNG or WebP image.",
+  "隐藏完整 IP": "Hide full IP address",
+  "页面访问": "Page views"
+};
+  window.nethubT = (text, values = {}) => {
+    const translated = document.documentElement.lang === "en" ? (messages[text] ?? text) : text;
+    return translated.replace(/\{(\w+)\}/g, (match, key) => Object.hasOwn(values, key) ? String(values[key]) : match);
+  };
+})();

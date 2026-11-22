@@ -1,3 +1,5 @@
+const t = window.nethubT;
+const locale = document.documentElement.lang;
 const form = document.querySelector("#analytics-filter");
 const message = document.querySelector("#analytics-message");
 const content = document.querySelector("#analytics-content");
@@ -6,8 +8,8 @@ let revealIp = false;
 let lastTotal = 0;
 
 const labels = {accounts:"Accounts",wiki:"Campus Wiki",todo:"Todo",cas:"Codex CAS",techx:"TechX"};
-const number = (value) => new Intl.NumberFormat("zh-CN").format(Number(value || 0));
-const dateText = (value) => value ? new Date(value).toLocaleString("zh-CN") : "—";
+const number = (value) => new Intl.NumberFormat(locale).format(Number(value || 0));
+const dateText = (value) => value ? new Date(value).toLocaleString(locale) : "—";
 function node(tag, className, value) {
   const item = document.createElement(tag);
   if (className) item.className = className;
@@ -35,16 +37,16 @@ function range() {
 }
 async function fetchJson(path, params) {
   const response = await fetch(`${path}?${params}`, {credentials:"same-origin"});
-  if (!response.ok) throw new Error(`查询失败：HTTP ${response.status}`);
+  if (!response.ok) throw new Error(t("查询失败：HTTP {status}", {status:response.status}));
   return response.json();
 }
 function renderMetrics(data) {
   const values = [
-    ["请求数", number(data.requests)], ["页面访问", number(data.pageViews)],
-    ["独立 IP", data.uniqueIps === null ? "—" : number(data.uniqueIps)],
-    ["独立用户", data.uniqueUsers === null ? "—" : number(data.uniqueUsers)],
-    ["5xx 错误率", `${(100 * data.errorRate).toFixed(2)}%`],
-    ["P95 耗时", data.p95Ms === null ? "—" : `${number(Math.round(data.p95Ms))} ms`],
+    [t("请求数"), number(data.requests)], [t("页面访问"), number(data.pageViews)],
+    [t("独立 IP"), data.uniqueIps === null ? "—" : number(data.uniqueIps)],
+    [t("独立用户"), data.uniqueUsers === null ? "—" : number(data.uniqueUsers)],
+    [t("5xx 错误率"), `${(100 * data.errorRate).toFixed(2)}%`],
+    [t("P95 耗时"), data.p95Ms === null ? "—" : `${number(Math.round(data.p95Ms))} ms`],
   ];
   const container = document.querySelector("#metrics");
   container.replaceChildren(...values.map(([title, value]) => {
@@ -56,7 +58,7 @@ function renderMetrics(data) {
 function renderRanks(selector, items, formatter, onSelect) {
   const target = document.querySelector(selector);
   target.replaceChildren();
-  if (!items.length) {target.append(node("p", "empty-note", "暂无数据")); return;}
+  if (!items.length) {target.append(node("p", "empty-note", t("暂无数据"))); return;}
   const max = Math.max(...items.map((item) => item.count));
   for (const item of items) {
     const row = node("div", "rank-row");
@@ -79,11 +81,11 @@ function renderTrend(series) {
   for (const [bucket, count] of buckets) {
     const bar = node("div", "trend-bar");
     bar.style.height = `${Math.max(3, 100 * count / max)}%`;
-    bar.title = `${bucket}: ${number(count)} 次`;
+    bar.title = t("{bucket}：{count} 次", {bucket, count:number(count)});
     chart.append(bar);
   }
-  const unit = buckets[0] && buckets[0][0].length === 10 ? "天" : "小时";
-  document.querySelector("#chart-caption").textContent = `${buckets.length} ${unit} · 当前筛选范围`;
+  const unit = buckets[0] && buckets[0][0].length === 10 ? t("天") : t("小时");
+  document.querySelector("#chart-caption").textContent = t("{count} {unit} · 当前筛选范围", {count:buckets.length, unit});
 }
 function renderSlow(items) {
   const body = document.querySelector("#slow-table"); body.replaceChildren();
@@ -100,27 +102,27 @@ function renderEvents(data) {
     const tr = node("tr");
     const name = data.userNames[event.user_sub];
     const values = [dateText(event.occurred_at), labels[event.site] || event.site,
-      name ? `${name.displayName} (@${name.username})` : event.user_sub || "匿名",
+      name ? `${name.displayName} (@${name.username})` : event.user_sub || t("匿名"),
       event.ip || event.ipMasked, `${event.method} ${event.path}`, event.status,
       `${Math.round(event.duration_ms)} ms`, event.ray_id || "—"];
     values.forEach((value, index) => tr.append(node("td", index === 5 && event.status >= 500 ? "status-error" : "", value)));
     const cell = node("td");
     const details = node("details");
-    details.append(node("summary", "", event.browser_id ? event.browser_id.slice(0, 8) : "客户端信息"));
+    details.append(node("summary", "", event.browser_id ? event.browser_id.slice(0, 8) : t("客户端信息")));
     const info = {browserId: event.browser_id || null, userAgent: event.user_agent,
       acceptLanguage: event.accept_language, clientHints: JSON.parse(event.client_hints || "{}"), snapshot: JSON.parse(event.client_info || "{}")};
     details.append(node("pre", "", JSON.stringify(info, null, 2)));
     cell.append(details); tr.append(cell);
     body.append(tr);
   }
-  if (!data.events.length) {const tr = node("tr"); const td = node("td", "empty-note", "此筛选条件下没有请求"); td.colSpan = 9; tr.append(td); body.append(tr);}
-  document.querySelector("#event-count").textContent = `共 ${number(data.total)} 条`;
+  if (!data.events.length) {const tr = node("tr"); const td = node("td", "empty-note", t("此筛选条件下没有请求")); td.colSpan = 9; tr.append(td); body.append(tr);}
+  document.querySelector("#event-count").textContent = t("共 {count} 条", {count:number(data.total)});
   document.querySelector("#page-label").textContent = `${currentPage} / ${Math.max(1, Math.ceil(data.total / data.pageSize))}`;
   document.querySelector("#prev-page").disabled = currentPage <= 1;
   document.querySelector("#next-page").disabled = currentPage * data.pageSize >= data.total;
 }
 async function load() {
-  message.textContent = "正在查询…";
+  message.textContent = t("正在查询…");
   try {
     const params = range();
     const eventsParams = new URLSearchParams(params); eventsParams.set("page", String(currentPage));
@@ -134,20 +136,20 @@ async function load() {
     renderRanks("#status-list", summary.statuses, (v) => v.value);
     renderRanks("#path-list", summary.paths, (v) => v.value, (v) => {form.elements.path.value = v.value; currentPage = 1; load();});
     renderRanks("#user-list", summary.users, (v) => {
-      const u = summary.userNames[v.value]; return u ? `${u.displayName} (@${u.username})` : v.value || "匿名";
+      const u = summary.userNames[v.value]; return u ? `${u.displayName} (@${u.username})` : v.value || t("匿名");
     }, (v) => {form.elements.userSub.value = v.value; currentPage = 1; load();});
     renderRanks("#ip-list", summary.ips, (v) => v.value || v.masked, (v) => {
       if (v.value) {form.elements.ip.value = v.value; currentPage = 1; load();}
-      else message.textContent = "先点击「显示完整 IP」，再选择 IP。";
+      else message.textContent = t("先点击「显示完整 IP」，再选择 IP。");
     });
-    renderRanks("#country-list", summary.countries, (v) => v.value || "未知");
-    renderRanks("#referer-list", summary.referrers, (v) => v.value || "直接访问");
-    renderRanks("#agent-list", summary.agents, (v) => v.value || "未知");
+    renderRanks("#country-list", summary.countries, (v) => v.value || t("未知"));
+    renderRanks("#referer-list", summary.referrers, (v) => v.value || t("直接访问"));
+    renderRanks("#agent-list", summary.agents, (v) => v.value || t("未知"));
     const exportParams = new URLSearchParams(params); exportParams.delete("revealIp");
     document.querySelector("#export-link").href = `/admin/analytics/export.csv?${exportParams}`;
     message.textContent = summary.historical
-      ? `日聚合共 ${number(summary.requests)} 条请求；30 天以外的用户、IP 和 P95 明细已按保留期清理。`
-      : `已读取 ${number(summary.requests)} 条请求；IP 默认掩码，导出也使用掩码。`;
+      ? t("日聚合共 {count} 条请求；30 天以外的用户、IP 和 P95 明细已按保留期清理。", {count:number(summary.requests)})
+      : t("已读取 {count} 条请求；IP 默认掩码，导出也使用掩码。", {count:number(summary.requests)});
     content.hidden = false;
   } catch (error) {message.textContent = error.message; content.hidden = true;}
 }
@@ -158,7 +160,7 @@ form.elements.range.addEventListener("change", () => {
 });
 form.elements.range.dispatchEvent(new Event("change"));
 document.querySelector("#reveal-ip").addEventListener("click", () => {
-  revealIp = !revealIp; document.querySelector("#reveal-ip").textContent = revealIp ? "隐藏完整 IP" : "显示完整 IP"; load();
+  revealIp = !revealIp; document.querySelector("#reveal-ip").textContent = revealIp ? t("隐藏完整 IP") : t("显示完整 IP"); load();
 });
 document.querySelector("#prev-page").addEventListener("click", () => {if (currentPage > 1) {currentPage--; load();}});
 document.querySelector("#next-page").addEventListener("click", () => {if (currentPage * 50 < lastTotal) {currentPage++; load();}});
