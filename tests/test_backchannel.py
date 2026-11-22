@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import select
 
 from app.backchannel import deliver_pending_jobs
@@ -14,7 +15,8 @@ class SuccessfulResponse:
         return None
 
 
-def test_logout_all_queues_and_delivers_backchannel(app, client, monkeypatch):
+@pytest.mark.parametrize("reason", ["logout_all", "password_changed"])
+def test_user_action_queues_and_delivers_backchannel(app, client, monkeypatch, reason):
     with app.app_context():
         user = create_user()
         oauth_client = OAuth2Client(
@@ -42,17 +44,29 @@ def test_logout_all_queues_and_delivers_backchannel(app, client, monkeypatch):
         user_id = user.id
 
     login(client)
-    page = client.get("/oauth/logout")
-    page_html = page.get_data(as_text=True)
-    assert 'href="/account"' in page_html
-    assert ">取消</a>" in page_html
-    response = client.post("/oauth/logout", data={"csrf_token": csrf_from(page)})
+    if reason == "logout_all":
+        page = client.get("/oauth/logout")
+        assert 'href="/account"' in page.text and ">取消</a>" in page.text
+        response = client.post("/oauth/logout", data={"csrf_token": csrf_from(page)})
+    else:
+        response = client.post(
+            "/account",
+            data={
+                "csrf_token": csrf_from(client.get("/account")),
+                "action": "password",
+                "current_password": "password-123",
+                "new_password": "new-password-456",
+                "confirm_password": "new-password-456",
+            },
+        )
     assert response.status_code == 302
     with app.app_context():
         sessions = db.session.scalars(select(WebSession).where(WebSession.user_id == user_id)).all()
-        assert sessions and all(item.revoked_at is not None for item in sessions)
+        assert any(item.revoked_at is not None for item in sessions)
+        active_count = sum(item.revoked_at is None for item in sessions)
+        assert active_count == int(reason == "password_changed")
         job = db.session.scalar(select(BackchannelJob))
-        assert job.status == "pending"
+        assert job.status == "pending" and job.reason == reason
 
     sent = {}
 

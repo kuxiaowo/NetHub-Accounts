@@ -422,12 +422,11 @@ def account():
                         revoke_user_oauth_tokens(g.current_user.id)
                         audit("account.password_changed", target=g.current_user)
                         _new_session, raw_token = create_web_session(g.current_user)
+                    queue_logout(g.current_user, "password_changed")
+                    if not d1:
                         db.session.commit()
                     g.current_user.password_hash = password_hash
                     g.current_user.must_change_password = False
-                    # The durable state batch commits before logout jobs are queued.
-                    # Queue creation is idempotent/retryable work outside that batch.
-                    queue_logout(g.current_user, "password_changed")
                     response = continue_after_form(
                         safe_next(request.args.get("next"), url_for("web.account"))
                     )
