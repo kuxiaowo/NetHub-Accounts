@@ -48,6 +48,7 @@ class Settings:
     secret_key: str
     signing_key_path: Path
     registration_enabled: bool
+    registration_mode: str
     cookie_secure: bool
     trusted_proxy_count: int
     session_idle_seconds: int
@@ -95,6 +96,7 @@ class Settings:
             secret_key=os.getenv("ACCOUNTS_SECRET_KEY", "").strip(),
             signing_key_path=key_path,
             registration_enabled=_bool("REGISTRATION_ENABLED", False),
+            registration_mode=os.getenv("REGISTRATION_MODE", "invite").strip().lower(),
             cookie_secure=_bool("SESSION_COOKIE_SECURE", True),
             trusted_proxy_count=_int("TRUSTED_PROXY_COUNT", 1, 0),
             session_idle_seconds=_int("SESSION_IDLE_SECONDS", 7 * 86400, 300),
@@ -120,6 +122,8 @@ class Settings:
             turnstile_site_key=os.getenv("TURNSTILE_SITE_KEY", "").strip(),
             turnstile_secret_key=os.getenv("TURNSTILE_SECRET_KEY", "").strip(),
         )
+        if settings.registration_mode not in {"invite", "open"}:
+            raise RuntimeError("REGISTRATION_MODE must be invite or open")
         if testing:
             return settings
         if not settings.host:

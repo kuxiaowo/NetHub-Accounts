@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 {% block title %}NetHub Accounts{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='2') }}">{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='home-classic.css') }}" data-layout-sheet="classic">
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='3') }}" data-layout-sheet="modern" media="not all">
+{% endblock %}
 {% block content %}
 <section class="hero">
 
-  <h1>{{ t("一个账号，连接校园。") }}</h1>
-  <p>{{ t("管理资料，访问你的应用。") }}</p>
-  <div class="actions">
+  <p class="eyebrow classic-only">UNIFIED ACCOUNT</p>
+  <h1><span class="classic-only">{{ t("统一账号可使用的网站") }}</span><span class="modern-only">{{ t("一个账号，连接校园。") }}</span></h1>
+  <p class="classic-only">{{ t("TodoList、TechX心情晴雨表、Campus Wiki、Codex笔记中心。") }}</p>
+  <p class="modern-only">{{ t("管理资料，访问你的应用。") }}</p>
+  <div class="actions{% if current_user %} modern-only{% endif %}">
     {% if current_user %}<a class="button" href="{{ url_for('web.account') }}">{{ t("管理账号") }}</a><a class="button secondary" href="{{ url_for('governance.community') }}">{{ t("邮箱与邀请") }}</a>
     {% else %}<a class="button" href="{{ url_for('web.login') }}">{{ t("登录") }}</a>{% if registration_enabled %}<a class="button secondary" href="{{ url_for('web.register') }}">{{ t("创建账号") }}</a>{% endif %}{% endif %}
   </div>
@@ -16,9 +21,15 @@
   <div class="app-grid">
     {% for client in clients %}
       {% set meta = home_client_meta.get(client.client_id, {}) %}
+      {% set name = t(meta['name']) if meta.get('name') else client.client_name or client.client_id %}
       <article class="app-card">
-        {% if meta.get('preview') %}<div class="app-preview" aria-hidden="true"><img src="{{ url_for('static', filename=meta['preview']) }}" alt="" loading="lazy"></div>{% endif %}
-        <div class="app-card-copy"><div><h3>{{ t(meta['name']) if meta.get('name') else client.client_name or client.client_id }}</h3><p>{{ t('已关联') if client.client_id in memberships else t('尚未使用') }}</p></div>{% if client.launch_uri %}<a class="button secondary small" href="{{ client.launch_uri }}">{{ t("打开") }} <span aria-hidden="true">↗</span></a>{% endif %}</div>
+        <div class="app-card-copy">
+          <div><h3>{{ name }}</h3><p>{{ t('已关联') if client.client_id in memberships else t('尚未使用') }}</p></div>
+          {% if client.launch_uri %}<a class="button small" href="{{ client.launch_uri }}">{{ t("打开") }}<span class="modern-only" aria-hidden="true"> ↗</span></a>{% endif %}
+        </div>
+        {% if client.launch_uri %}<a class="app-preview" href="{{ client.launch_uri }}" aria-label="{{ t('打开 {name}', name=name) }}">{% else %}<div class="app-preview" aria-hidden="true">{% endif %}
+          {% if meta.get('preview') %}<img src="{{ url_for('static', filename=meta['preview']) }}" alt="" loading="lazy">{% else %}<span>{{ t("暂无网页预览") }}</span>{% endif %}
+        {% if client.launch_uri %}</a>{% else %}</div>{% endif %}
       </article>
     {% else %}<div class="empty">{{ t("暂无可用应用。") }}</div>{% endfor %}
   </div>

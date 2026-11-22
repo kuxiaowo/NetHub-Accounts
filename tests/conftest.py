@@ -32,6 +32,7 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setenv("ACCOUNTS_ISSUER", "https://accounts.test")
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
     monkeypatch.setenv("REGISTRATION_ENABLED", "true")
+    monkeypatch.delenv("REGISTRATION_MODE", raising=False)
     application = create_app(
         {
             "TESTING": True,

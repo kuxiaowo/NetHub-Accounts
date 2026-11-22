@@ -7,8 +7,9 @@
 {% block content %}
 <div class="account-page">
   <header class="account-heading">
+    <p class="eyebrow classic-only">MY ACCOUNT</p>
     <h1>{{ t("个人资料") }}</h1>
-
+    <p class="classic-only">{{ t("管理你的统一头像、显示名称和账号安全。") }}</p>
   </header>
   <div class="account-layout">
     <aside class="account-sidebar">
@@ -76,7 +77,7 @@
           <div class="account-form-actions"><button class="button" type="submit">{{ t("保存资料") }}</button></div>
         </form>
       </section>
-      <section class="panel account-panel"><h2>{{ t("邮箱与邀请") }}</h2><p>{{ t("验证邮箱后可在 Wiki 发言，首次验证满 72 小时后可邀请。") }}</p><a class="button" href="{{ url_for('governance.community') }}">{{ t("管理邮箱与邀请") }}</a></section>
+      <section class="panel account-panel"><h2>{{ t("邮箱与邀请") }}</h2><p>{{ t("验证邮箱后可在 Wiki 发言。") }}{% if config.REGISTRATION_MODE == "invite" %} {{ t("首次验证满 72 小时后可邀请。") }}{% endif %}</p><a class="button" href="{{ url_for('governance.community') }}">{{ t("管理邮箱与邀请") }}</a></section>
       <section id="security" class="panel account-panel" aria-labelledby="security-title">
         <div class="account-section-heading"><div><h2 id="security-title">{{ t("账号安全") }}</h2></div></div>
         <details class="account-disclosure password-disclosure" {% if current_user.must_change_password or (request.method == 'POST' and request.form.get('action') == 'password') %}open{% endif %}>

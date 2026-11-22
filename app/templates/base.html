@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <script src="{{ url_for('static', filename='ui-translations.js', v='1') }}"></script>
-  <script src="{{ url_for('static', filename='preferences.js', v='1') }}"></script>
   <script src="/__nethub/client.js?v=1" defer></script>
   <title>{% block title %}NetHub Accounts{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='brand/favicon.svg') }}">
-  <link rel="alternate icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='brand/favicon-32.png') }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" data-layout-icon data-classic="{{ url_for('static', filename='favicon.png') }}" data-modern="{{ url_for('static', filename='brand/favicon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css', v='2') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='avatar.css', v='cropper2') }}">
   <script src="{{ url_for('static', filename='avatar-fallback.js') }}" defer></script>
   {% block head %}{% endblock %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='preferences.css', v='1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='2') }}" data-layout-sheet="modern" media="not all">
+  <script src="{{ url_for('static', filename='preferences.js', v='2') }}"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">{{ t("跳到内容") }}</a>
@@ -22,11 +22,11 @@
     <a class="brand" href="{{ url_for('web.home') }}" aria-label="NetHub Accounts">
       <img class="brand-mark brand-mark-light" src="{{ url_for('static', filename='brand/nethub-mark.svg') }}" alt="" width="32" height="32">
       <img class="brand-mark brand-mark-dark" src="{{ url_for('static', filename='brand/nethub-mark-light.svg') }}" alt="" width="32" height="32">
-      <strong>NetHub</strong><span>Accounts</span>
+      <strong>NetHub</strong> <span>Accounts</span>
     </a>
     <nav aria-label="{{ t("主导航") }}">
       {% if current_user %}
-        <a class="nav-account" href="{{ url_for('web.account') }}">
+        <a class="nav-account" aria-label="{{ t('个人资料') }} · {{ current_user.display_name }}" href="{{ url_for('web.account') }}">
           <span class="avatar avatar-small" data-avatar-fallback="{{ current_user.display_name[:1]|upper }}"><img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt=""></span>
           <span class="nav-display-name">{{ current_user.display_name }}</span>
         </a>
@@ -39,10 +39,13 @@
         <a href="{{ url_for('web.login') }}">{{ t("登录") }}</a>
         {% if registration_enabled %}<a href="{{ url_for('web.register') }}">{{ t("注册") }}</a>{% endif %}
       {% endif %}
-      <span class="header-preferences">
-        <a class="preference-control language-toggle" href="{{ language_url('zh' if language == 'en' else 'en') }}" hreflang="{{ 'zh-CN' if language == 'en' else 'en' }}" aria-label="{{ t('切换到中文') if language == 'en' else 'Switch to English' }}">{{ t('中文') if language == 'en' else 'EN' }}</a>
-        <button class="preference-control theme-toggle" type="button" data-theme-toggle aria-label="{{ t("切换深浅主题") }}" aria-pressed="false"><span aria-hidden="true">◐</span></button>
-      </span>
+      <div class="header-preferences">
+        {% block language_switch %}<a class="preference-control language-toggle" href="{{ language_url('zh' if language == 'en' else 'en') }}" hreflang="{{ 'zh-CN' if language == 'en' else 'en' }}" aria-label="{{ t('切换到中文') if language == 'en' else 'Switch to English' }}">{{ t('中文') if language == 'en' else 'EN' }}</a>{% endblock %}
+        <button type="button" class="preference-control" data-layout-toggle hidden>
+          <span class="classic-only">{{ t("切换新版") }}</span><span class="modern-only">{{ t("切回旧版") }}</span>
+        </button>
+        <button class="preference-control theme-toggle modern-only" type="button" data-theme-toggle aria-label="{{ t("切换深浅主题") }}" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+      </div>
     </nav>
   </header>
   <main class="container" id="main-content">
@@ -51,7 +54,7 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
-  <footer><span>{{ t("一个账号，连接 NetHub。") }}</span><a href="{{ url_for('governance.policy') }}">{{ t("账号与隐私") }}</a></footer>
+  <footer><span class="classic-only">{{ t("一个账号，按需使用 NetHub 服务。各网站权限仍由各网站管理。") }}</span><span class="modern-only">{{ t("一个账号，连接 NetHub。") }}</span><a href="{{ url_for('governance.policy') }}">{{ t("账号与隐私") }}</a></footer>
   {% block scripts %}{% endblock %}
 </body>
 </html>

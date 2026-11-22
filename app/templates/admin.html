@@ -3,7 +3,7 @@
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css', v='restriction-dialog-1') }}">{% endblock %}
 {% block content %}
 <div class="page-heading"><div><p class="eyebrow">ADMIN</p><h1>{{ t("账号管理") }}</h1></div><div class="actions"><a class="button secondary" href="{{ url_for('traffic.page') }}">{{ t("访问分析") }}</a><a class="button secondary" href="{{ url_for('web.admin_audit') }}">{{ t("审计日志") }}</a><a class="button secondary" href="{{ url_for('web.admin_backchannel') }}">{{ t("退出通知") }}{% if failed_jobs %} · {{ failed_jobs }} {{ t("失败") }}{% endif %}</a></div></div>
-<section class="panel"><h2>{{ t("邀请注册") }}</h2><a class="button secondary" href="{{ url_for('governance.invitation_relations') }}">{{ t("查看邀请关系") }}</a><p>{{ t("普通账号须凭邀请注册；新管理员由受控初始化命令管理。") }}</p></section>
+<section class="panel"><h2>{{ t("账号注册") }}</h2><a class="button secondary" href="{{ url_for('governance.invitation_relations') }}">{{ t("查看邀请关系") }}</a><p>{% if not registration_enabled %}{{ t("注册暂未开放。") }}{% elif config.REGISTRATION_MODE == "open" %}{{ t("当前开放自由注册，邀请功能已暂停。") }}{% else %}{{ t("普通账号须凭邀请注册。") }}{% endif %} {{ t("新管理员由受控初始化命令管理。") }}</p></section>
 <section class="panel">
   <h2>{{ t("用户") }} <span class="muted">{{ t("共") }} {{ total_users }} {{ t("个") }}</span></h2>
   <div class="table-wrap"><table class="admin-users-table"><thead><tr><th>ID</th><th>{{ t("用户名") }}</th><th>{{ t("显示名称") }}</th><th>{{ t("已使用网站") }}</th><th>{{ t("状态") }}</th><th>{{ t("临时密码") }}</th><th>{{ t("操作") }}</th></tr></thead><tbody>

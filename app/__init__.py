@@ -47,6 +47,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         OAUTH2_TOKEN_EXPIRES_IN={"authorization_code": settings.token_expires_seconds},
         OAUTH_TOKEN_EXPIRES_SECONDS=settings.token_expires_seconds,
         REGISTRATION_ENABLED=settings.registration_enabled,
+        REGISTRATION_MODE=settings.registration_mode,
         SESSION_IDLE_SECONDS=settings.session_idle_seconds,
         SESSION_ABSOLUTE_SECONDS=settings.session_absolute_seconds,
         LOGIN_LIMIT_PER_15_MINUTES=settings.login_limit_per_15_minutes,

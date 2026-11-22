@@ -114,6 +114,8 @@ def normalize_email(value: str) -> str:
 
 
 def invitation_blocker(user: User, now=None) -> str:
+    if current_app.config["REGISTRATION_MODE"] == "open":
+        return "邀请功能已暂停"
     now = now or utc_now()
     if not user.is_active or user.merged_into_user_id:
         return "账号已封禁或停用"
@@ -388,9 +390,30 @@ def issue():
     except (ValueError, IntegrityError) as exc:
         flash(str(exc) if isinstance(exc, ValueError) else "今日额度已使用", "error")
         return redirect(url_for("governance.community"))
+    return invitation_result(item, raw)
+
+
+@governance.post("/account/invitations/display")
+@login_required
+def display_invitation():
+    """Localize the already-visible invitation without issuing another one."""
+    require_csrf()
+    raw = request.form.get("invite", "")
+    item = db.session.scalar(
+        select(Invitation).where(
+            Invitation.inviter_id == g.current_user.id, Invitation.token_hash == token_digest(raw)
+        )
+    )
+    if item is None:
+        abort(404)
+    return invitation_result(item, raw)
+
+
+def invitation_result(item, raw):
     response = current_app.make_response(
         render_template(
             "invitation_created.html",
+            invitation_token=raw,
             link=current_app.config["OIDC_ISSUER"] + "/register?invite=" + raw,
             expires=item.expires_at,
         )

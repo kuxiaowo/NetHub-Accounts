@@ -2,8 +2,8 @@
 {% block title %}{{ t("邮箱与邀请 · NetHub Accounts") }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='account.css', v='2') }}">{% endblock %}
 {% block content %}
-<div class="account-page">
-  <header class="account-heading"><h1>{{ t("邮箱与邀请") }}</h1></header>
+<div class="account-page community-page">
+  <header class="account-heading"><h1>{{ t("邮箱与邀请") }}</h1><a class="classic-only" href="{{ url_for('web.account') }}">{{ t("返回个人中心") }}</a></header>
   <div class="account-layout">
     <aside class="account-sidebar"><nav class="account-nav" aria-label="{{ t("账号设置导航") }}"><a href="{{ url_for('web.account') }}">{{ t("个人资料") }}</a><a href="{{ url_for('governance.community') }}" aria-current="page">{{ t("邮箱与邀请") }}</a><a href="{{ url_for('web.account') }}#security">{{ t("账号安全") }}</a><a href="{{ url_for('web.account') }}#websites">{{ t("关联应用") }}</a></nav><a class="account-home-link" href="{{ url_for('web.home') }}">{{ t("返回首页") }}</a></aside>
     <div class="account-sections">
@@ -20,9 +20,11 @@
       </section>
       <section class="panel account-panel" aria-labelledby="invite-title">
         <div class="account-section-heading"><h2 id="invite-title">{{ t("邀请朋友") }}</h2>{% if blocker %}<span class="status-badge">{{ t("尚未开启") }}</span>{% endif %}</div>
+        {% if config.REGISTRATION_MODE == "invite" %}
         <div class="invitation-facts"><div><strong>{{ t("每日 1 份") }}</strong><span>{{ t("北京时间零点重置") }}</span></div><div><strong>{{ t("7 天有效") }}</strong><span>{{ t("每份仅可使用一次") }}</span></div><div><strong>{{ t("验证满 72 小时") }}</strong><span>{{ t("首次验证后开启") }}</span></div></div>
-        {% if blocker %}<p class="field-help" role="status">{{ t(blocker) }}</p><button class="button" type="button" disabled>{{ t("生成今日邀请") }}</button>{% else %}<form method="post" action="{{ url_for('governance.issue') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div><button class="button" type="submit">{{ t("生成今日邀请") }}</button></div></form>{% endif %}
-        <p class="field-help">{{ t("撤销邀请不返还当日额度。") }}</p>
+        {% endif %}
+        {% if blocker %}<p class="field-help" role="status">{{ t(blocker) }}</p>{% if config.REGISTRATION_MODE == "invite" %}<button class="button modern-only" type="button" disabled>{{ t("生成今日邀请") }}</button>{% endif %}{% else %}<form method="post" action="{{ url_for('governance.issue') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div><button class="button" type="submit">{{ t("生成今日邀请") }}</button></div></form>{% endif %}
+        {% if config.REGISTRATION_MODE == "invite" %}<p class="field-help">{{ t("撤销邀请不返还当日额度。") }}</p>{% endif %}
       </section>
       <section class="panel account-panel" aria-labelledby="history-title"><div class="account-section-heading"><h2 id="history-title">{{ t("邀请记录") }}</h2></div>
         <ul class="invitation-list">{% for item in invitations %}<li><time>{{ item.issued_day }}</time><span>{% if item.redeemed_at %}{{ t("已使用") }}{% elif item.revoked_at %}{{ t("已撤销") }}{% elif item.expires_at <= now %}{{ t("已过期") }}{% else %}{{ t('有效至 {date}', date=item.expires_at|beijing_time) }}{% endif %}</span>{% if not item.redeemed_at and not item.revoked_at and item.expires_at > now %}<form method="post" action="{{ url_for('governance.revoke', invitation_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary small" type="submit">{{ t("撤销") }}</button></form>{% endif %}</li>{% else %}<li class="muted">{{ t("尚未生成邀请。") }}</li>{% endfor %}</ul>

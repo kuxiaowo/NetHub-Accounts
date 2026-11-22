@@ -6,6 +6,7 @@
 .app-card {
   display:flex;
   flex-direction:column;
+  align-items:stretch;
   padding:0;
   overflow:hidden;
   gap:0
@@ -27,6 +28,9 @@
   font-size:12px
 }
 .app-preview {
+  order:-1;
+  display:grid;
+  place-items:center;
   height:155px;
   border-bottom:1px solid var(--line);
   background:var(--bg);
@@ -40,6 +44,9 @@
   object-position:top
 }
 .app-card .button {
+  background:var(--paper);
+  color:var(--ink);
+  border:1px solid var(--line);
   flex-shrink:0
 }
 @media(max-width:640px) {

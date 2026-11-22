@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import re
 from datetime import timedelta
+from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlsplit
 
+from sqlalchemy import select
+
 from app.extensions import db
-from app.models import utc_now
+from app.models import Invitation, utc_now
 from tests.conftest import create_user, csrf_from
 from tests.test_accounts import login
+from tests.test_governance import eligible
 
 
 class LanguageLink(HTMLParser):
@@ -17,6 +22,14 @@ class LanguageLink(HTMLParser):
         values = dict(attrs)
         if tag == "a" and "language-toggle" in values.get("class", ""):
             self.url = values["href"]
+
+
+def test_home_defaults_to_classic_styles_in_both_languages(client):
+    for language in ["zh", "en"]:
+        page = client.get("/", query_string={"lang": language})
+        assert 'data-layout-sheet="classic">' in page.text
+        assert page.text.count('data-layout-sheet="modern" media="not all"') == 2
+        assert "data-layout-toggle" in page.text
 
 
 def test_language_persists_without_rewriting_oauth_parameters(client):
@@ -89,3 +102,33 @@ def test_invalid_language_uses_safe_default(client):
     response = client.get("/login?lang=%3Cscript%3E")
     assert '<html lang="zh-CN">' in response.text
     assert "nethub-language=" not in response.headers.get("Set-Cookie", "")
+
+
+def test_open_registration_is_localized_in_english(app, client):
+    app.config["REGISTRATION_MODE"] = "open"
+    page = client.get("/register?lang=en")
+    assert 'name="invite"' not in page.text
+    assert "verification email" in page.text
+    assert "Open registration is enabled." in client.get("/policy").text
+    with app.app_context():
+        create_user(admin=True)
+    login(client)
+    assert "Invitations are paused." in client.get("/admin").text
+    community = client.get("/account/community")
+    assert "Invitations are paused." in community.text and "72-hour wait" not in community.text
+
+
+def test_switch_language_on_invitation_result_preserves_link_and_quota(app, client):
+    with app.test_request_context():
+        eligible()
+    login(client)
+    csrf = csrf_from(client.get("/account"))
+    page = client.post("/account/invitations", data={"csrf_token": csrf})
+    raw = re.search(r'name="invite" value="([^"]+)"', page.text)[1]
+    action = unescape(re.search(r'<form method="post" action="([^"]+/display[^"]*)"', page.text)[1])
+    english = client.post(action, data={"csrf_token": csrf_from(page), "invite": raw})
+    assert english.status_code == 200 and english.headers["Content-Language"] == "en"
+    assert "/register?invite=" + raw in english.text
+    assert english.headers["Cache-Control"] == "no-store"
+    with app.app_context():
+        assert len(db.session.scalars(select(Invitation)).all()) == 1
