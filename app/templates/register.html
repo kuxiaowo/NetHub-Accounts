@@ -3,7 +3,6 @@
 {% block head %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endblock %}
 {% block content %}
 <section class="auth-card">
-  <p class="eyebrow classic-only">CREATE ACCOUNT</p>
   <h1>{{ t("创建统一账号") }}</h1>
   {% if disabled %}
     <div class="flash warning">{{ t("注册暂未开放。已有用户仍可登录。") }}</div>

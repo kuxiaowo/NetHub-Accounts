@@ -2,10 +2,8 @@
   'use strict';
   const root = document.documentElement;
   const media = window.matchMedia('(prefers-color-scheme: dark)');
-  let layout = 'classic';
   let theme = 'system';
   try {
-    if (localStorage.getItem('nethub-layout') === 'modern') layout = 'modern';
     theme = localStorage.getItem('nethub-theme') || 'system';
   } catch (_) { /* Use defaults when storage is unavailable. */ }
 
@@ -14,43 +12,43 @@
   }
 
   function applyColor() {
-    const dark = layout === 'modern' && (theme === 'dark' || (theme === 'system' && media.matches));
+    const dark = theme === 'dark' || (theme !== 'light' && media.matches);
     root.dataset.theme = dark ? 'dark' : 'light';
     const button = document.querySelector('[data-theme-toggle]');
     if (button) {
-      button.setAttribute('aria-pressed', String(dark));
-      button.setAttribute('aria-label', root.lang === 'en'
-        ? (dark ? 'Switch to light theme' : 'Switch to dark theme')
-        : (dark ? '切换浅色主题' : '切换深色主题'));
+      button.setAttribute('aria-checked', String(dark));
+      button.setAttribute('aria-label', window.nethubT('深色模式'));
+      button.title = window.nethubT(dark ? '切换浅色主题' : '切换深色主题');
+      button.querySelector('.theme-switch-label').textContent = window.nethubT(dark ? '深色' : '浅色');
     }
   }
 
-  function applyLayout() {
-    root.dataset.ui = layout;
-    for (const sheet of document.querySelectorAll('[data-layout-sheet]')) {
-      sheet.media = sheet.dataset.layoutSheet === layout ? 'all' : 'not all';
-    }
-    const icon = document.querySelector('[data-layout-icon]');
-    icon.href = icon.dataset[layout];
-    applyColor();
-  }
-
-  applyLayout();
+  applyColor();
   media.addEventListener('change', applyColor);
   document.addEventListener('DOMContentLoaded', () => {
     remember('nethub-language', root.lang === 'en' ? 'en' : 'zh');
     applyColor();
-    const switcher = document.querySelector('[data-layout-toggle]');
-    switcher.hidden = false;
-    switcher.addEventListener('click', () => {
-      layout = layout === 'modern' ? 'classic' : 'modern';
-      remember('nethub-layout', layout);
-      applyLayout();
-    });
-    document.querySelector('[data-theme-toggle]').addEventListener('click', () => {
+    const themeSwitch = document.querySelector('[data-theme-toggle]');
+    themeSwitch.hidden = false;
+    themeSwitch.addEventListener('click', () => {
       theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
       remember('nethub-theme', theme);
       applyColor();
     });
+    const menu = document.querySelector('details.nav-account');
+    if (menu) {
+      document.addEventListener('click', (event) => {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      });
+      menu.addEventListener('focusout', (event) => {
+        if (event.relatedTarget && !menu.contains(event.relatedTarget)) menu.open = false;
+      });
+      menu.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && menu.open) {
+          menu.open = false;
+          menu.querySelector('summary').focus();
+        }
+      });
+    }
   });
 })();

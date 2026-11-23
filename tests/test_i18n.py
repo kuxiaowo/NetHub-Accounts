@@ -6,6 +6,7 @@ from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from sqlalchemy import select
 
 from app.extensions import db
@@ -24,12 +25,34 @@ class LanguageLink(HTMLParser):
             self.url = values["href"]
 
 
-def test_home_defaults_to_classic_styles_in_both_languages(client):
+@pytest.mark.parametrize("admin", [False, True])
+def test_english_account_menu_groups_actions_by_role(app, client, admin):
+    assert '<details class="nav-account">' not in client.get("/").text
+    with app.app_context():
+        create_user(admin=admin)
+    assert login(client).status_code == 302
+    page = client.get("/account?lang=en")
+    header = page.text.partition("</header>")[0]
+    toolbar, menu = header.split('<details class="nav-account">')
+    assert 'action="/logout"' not in toolbar and 'href="/admin"' not in toolbar
+    assert 'href="/account"' in menu and 'action="/logout"' in menu
+    assert "Profile" in menu and "Sign out" in menu
+    assert ("Account management" in menu) == admin
+    assert f'name="csrf_token" value="{csrf_from(page)}"' in menu
+    assert ('href="/admin"' in menu) == admin
+
+
+def test_home_always_serves_the_current_ui_in_both_languages(client):
     for language in ["zh", "en"]:
         page = client.get("/", query_string={"lang": language})
-        assert 'data-layout-sheet="classic">' in page.text
-        assert page.text.count('data-layout-sheet="modern" media="not all"') == 2
-        assert "data-layout-toggle" in page.text
+        sheets = re.findall(r'<link rel="stylesheet"[^>]*>', page.text)
+        for filename in ("home.css", "refresh.css"):
+            sheet, = (tag for tag in sheets if f'/static/{filename}?' in tag)
+            assert 'media=' not in sheet
+            assert page.text.index(sheet) < page.text.index('<script blocking="render"')
+        assert "/static/brand/favicon.svg" in page.text
+        assert "data-layout-" not in page.text and "home-classic.css" not in page.text
+        assert 'role="switch"' in page.text
 
 
 def test_language_persists_without_rewriting_oauth_parameters(client):
@@ -116,6 +139,31 @@ def test_open_registration_is_localized_in_english(app, client):
     assert "Invitations are paused." in client.get("/admin").text
     community = client.get("/account/community")
     assert "Invitations are paused." in community.text and "72-hour wait" not in community.text
+
+
+@pytest.mark.parametrize(
+    ("enabled", "mode", "notice_zh", "notice_en"),
+    [
+        (True, "invite", "普通账号须凭邀请注册。", "An invitation is required to register."),
+        (True, "open", "当前开放自由注册。", "Open registration is enabled."),
+        (False, "invite", "注册暂未开放。", "Registration is currently closed."),
+        (False, "open", "注册暂未开放。", "Registration is currently closed."),
+    ],
+)
+def test_policy_matches_registration_settings(app, client, enabled, mode, notice_zh, notice_en):
+    app.config.update(REGISTRATION_ENABLED=enabled, REGISTRATION_MODE=mode)
+    zh = client.get("/policy?lang=zh").text
+    en = client.get("/policy?lang=en").text
+    assert notice_zh in zh and notice_en in en
+    assert "180 天" not in zh and "365 天" not in zh
+    assert "180 days" not in en and "365 days" not in en
+    if enabled and mode == "invite":
+        assert "72 小时" in zh and "暂停邀请" in zh
+        assert "72 hours" in en and "suspend invitations" in en
+    else:
+        assert "邀请" not in zh and "invit" not in en.lower()
+        assert "管理员可以禁言或全站封禁" in zh
+        assert "restrict posting or ban accounts across sites" in en
 
 
 def test_switch_language_on_invitation_result_preserves_link_and_quota(app, client):
