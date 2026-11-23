@@ -20,11 +20,11 @@ from flask import (
     request,
     url_for,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from .account_repository import AccountConflictError, account_repository
-from .admin_repository import admin_repository
+from .admin_repository import USER_SEARCH, admin_repository
 from .avatar_gateway import AvatarGatewayError
 from .avatars import (
     AvatarError,
@@ -35,6 +35,11 @@ from .avatars import (
     store_avatar,
 )
 from .backchannel import deliver_pending_jobs, queue_logout
+from .community_features import (
+    community_features,
+    invite_registration_enabled,
+    set_community_feature,
+)
 from .extensions import authorization, db
 from .i18n import translate
 from .models import (
@@ -178,6 +183,7 @@ def template_context():
         "current_user": getattr(g, "current_user", None),
         "csrf_token": csrf_token,
         "registration_enabled": current_app.config["REGISTRATION_ENABLED"],
+        "invite_registration_enabled": invite_registration_enabled,
     }
 
 
@@ -270,7 +276,7 @@ def register():
                 user = _create_user(request.form.get("username", ""),
                                     request.form.get("display_name", ""), password)
                 user.email = email
-                if current_app.config["REGISTRATION_MODE"] != "open":
+                if invite_registration_enabled():
                     redeem_invitation(request.form.get("invite", ""), user)
                 record_rate_event("register", subject, True)
                 audit("auth.register", target=user)
@@ -435,8 +441,15 @@ def account():
                     return response
         else:
             abort(400, "Unknown account action")
-    if d1:
+    return render_account_page()
+
+
+def render_account_page(*, issued_invitation: dict | None = None):
+    from .governance import personal_governance_details
+
+    if current_app.config["ACCOUNTS_DATABASE_BACKEND"] == "d1":
         memberships, aliases = account_repository().account_details(g.current_user.id)
+        governance_details = None
     else:
         memberships = db.session.execute(
             select(AppMembership, OAuth2Client)
@@ -449,7 +462,14 @@ def account():
             .where(LoginAlias.user_id == g.current_user.id)
             .order_by(LoginAlias.id)
         ).all()
-    return render_template("account.html", memberships=memberships, aliases=aliases)
+        governance_details = personal_governance_details(g.current_user)
+    return render_template(
+        "account.html",
+        memberships=memberships,
+        aliases=aliases,
+        governance_details=governance_details,
+        issued_invitation=issued_invitation,
+    )
 
 
 @web.post("/account/avatar")
@@ -564,12 +584,39 @@ def public_avatar(subject):
     return avatar_response(user)
 
 
+@web.get("/api/community-features")
+def public_community_features():
+    return jsonify(community_features())
+
+
+@web.post("/admin/community-features/<name>")
+@admin_required
+def admin_community_feature(name):
+    require_csrf()
+    if name not in {"invitations", "comments", "messages"}:
+        abort(404)
+    value = request.form.get("enabled")
+    if value not in {"0", "1"}:
+        abort(400)
+    if name == "invitations" and not current_app.config["REGISTRATION_ENABLED"]:
+        abort(409, "注册暂未开放。")
+    set_community_feature(name, value == "1")
+    return redirect(url_for("web.admin", _anchor="community-features"), code=303)
+
+
+def _admin_list_params():
+    return {
+        "q": request.args.get("q", "").strip(),
+        "page": max(request.args.get("page", default=1, type=int) or 1, 1),
+        "per_page": min(max(request.args.get("per_page", default=50, type=int) or 50, 1), 100),
+    }
+
+
 @web.get("/admin")
 @admin_required
 def admin():
-    page = max(request.args.get("page", default=1, type=int) or 1, 1)
-    per_page = request.args.get("per_page", default=50, type=int) or 50
-    per_page = min(max(per_page, 1), 100)
+    params = _admin_list_params()
+    query, page, per_page = params["q"], params["page"], params["per_page"]
     if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
         (
             users,
@@ -579,13 +626,19 @@ def admin():
             total_users,
             total_pages,
             page,
-        ) = admin_repository().dashboard(page, per_page)
+        ) = admin_repository().dashboard(page, per_page, query)
     else:
-        total_users = db.session.scalar(select(func.count(User.id))) or 0
+        count_stmt = select(func.count(User.id))
+        users_stmt = select(User)
+        if query:
+            matches = text(USER_SEARCH).bindparams(query=query)
+            count_stmt = count_stmt.where(matches)
+            users_stmt = users_stmt.where(matches)
+        total_users = db.session.scalar(count_stmt) or 0
         total_pages = max(1, (total_users + per_page - 1) // per_page)
         page = min(page, total_pages)
         users = db.session.scalars(
-            select(User).order_by(User.id).offset((page - 1) * per_page).limit(per_page)
+            users_stmt.order_by(User.id).offset((page - 1) * per_page).limit(per_page)
         ).all()
         clients = db.session.scalars(select(OAuth2Client).order_by(OAuth2Client.id)).all()
         client_names = {
@@ -608,6 +661,8 @@ def admin():
         )
     return render_template(
         "admin.html",
+        query=query,
+        features=community_features(),
         users=users,
         clients=clients,
         membership_map=membership_map,
@@ -620,43 +675,42 @@ def admin():
 
 
 @web.post("/admin/users/<int:user_id>/reset-password")
+@web.route("/admin/users/<int:user_id>/edit", methods=["GET", "POST"], endpoint="admin_edit_user")
 @admin_required
 def admin_reset_password(user_id: int):
-    require_csrf()
-    record_admin_action("admin.reset_password_attempt")
+    if request.method == "POST":
+        require_csrf()
+        record_admin_action("admin.reset_password_attempt")
+    target = account_repository().get_user(user_id)
+    if target is None:
+        abort(404)
+    list_params = _admin_list_params()
+    if request.method != "POST":
+        return render_template("admin_edit_user.html", target=target, list_params=list_params)
+    try:
+        password_hash = hash_password(request.form.get("temporary_password", ""))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return render_template("admin_edit_user.html", target=target, list_params=list_params), 400
     if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") == "d1":
-        target = account_repository().get_user(user_id)
-        if target is None:
-            abort(404)
-        try:
-            password_hash = hash_password(request.form.get("temporary_password", ""))
-        except ValueError as exc:
-            flash(str(exc), "error")
-            return redirect(url_for("web.admin")), 400
         if not account_repository().reset_password(
             target.id, password_hash, g.current_user.id, client_ip()
         ):
             abort(409, "账号已被删除")
-        queue_logout(target, "password_reset")
-        flash("临时密码已设置，用户下次登录必须修改。", "success")
-        return redirect(url_for("web.admin"))
-    target = db.get_or_404(User, user_id)
-    try:
-        target.password_hash = hash_password(request.form.get("temporary_password", ""))
-    except ValueError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("web.admin")), 400
-    target.must_change_password = True
-    for credential in db.session.scalars(
-        select(LegacyCredential).where(LegacyCredential.user_id == target.id)
-    ):
-        db.session.delete(credential)
-    revoke_user_access(target.id)
+    else:
+        target.password_hash = password_hash
+        target.must_change_password = True
+        for credential in db.session.scalars(
+            select(LegacyCredential).where(LegacyCredential.user_id == target.id)
+        ):
+            db.session.delete(credential)
+        revoke_user_access(target.id)
     queue_logout(target, "password_reset")
-    audit("admin.password_reset", target=target)
-    db.session.commit()
-    flash("临时密码已设置，用户下次登录必须修改。", "success")
-    return redirect(url_for("web.admin"))
+    if current_app.config.get("ACCOUNTS_DATABASE_BACKEND") != "d1":
+        audit("admin.password_reset", target=target)
+        db.session.commit()
+    flash("临时密码已设置，用户下次登录必须修改。", "users:success")
+    return redirect(url_for("web.admin", _anchor="users", **list_params))
 
 
 @web.post("/admin/users/<int:user_id>/delete")

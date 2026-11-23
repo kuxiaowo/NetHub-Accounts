@@ -8,7 +8,7 @@
   <h1>{{ t("一个账号，连接校园。") }}</h1>
   <p>{{ t("管理资料，访问你的应用。") }}</p>
   <div class="actions">
-    {% if current_user %}<a class="button" href="{{ url_for('web.account') }}">{{ t("管理账号") }}</a><a class="button secondary" href="{{ url_for('governance.community') }}">{{ t("邮箱与邀请") }}</a>
+    {% if current_user %}<a class="button" href="{{ url_for('web.account') }}">{{ t("管理账号") }}</a>
     {% else %}<a class="button" href="{{ url_for('web.login') }}">{{ t("登录") }}</a>{% if registration_enabled %}<a class="button secondary" href="{{ url_for('web.register') }}">{{ t("创建账号") }}</a>{% endif %}{% endif %}
   </div>
 </section>

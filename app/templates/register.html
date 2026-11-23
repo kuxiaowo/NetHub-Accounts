@@ -10,7 +10,7 @@
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ request.values.get('next', '') }}">
-    {% if config.REGISTRATION_MODE == "invite" %}
+    {% if invite_registration_enabled() %}
     <label>{{ t("邀请凭证") }}<input name="invite" value="{{ request.values.get('invite', '') }}" required maxlength="128" autocomplete="off"></label>
     {% endif %}
     <label>{{ t("邮箱") }}<input type="email" name="email" required maxlength="254" autocomplete="email"></label>

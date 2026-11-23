@@ -68,11 +68,6 @@
 .account-menu-panel form button { color: var(--danger); }
 
 @media (max-width: 760px) {
-  .site-header { height: auto; min-height: 68px; flex-wrap: wrap; gap: 8px; padding-block: 10px; }
+  .site-header { flex-wrap: wrap; }
   .site-header nav { flex-wrap: wrap; margin-inline-start: auto; gap: 8px; }
-}
-@media (max-width: 480px) {
-  .site-header:has(> .nav-account) { grid-template-columns: 1fr auto; }
-  .site-header:has(> .nav-account) > nav { grid-area: 2 / 1 / 3 / -1; }
-  .site-header > .nav-account { grid-area: 1 / 2; }
 }

@@ -1,3 +1,6 @@
+import sqlite3
+from contextlib import closing
+
 from app.admin_repository import D1AdminRepository
 
 
@@ -100,3 +103,25 @@ def test_d1_dashboard_reads_client_metadata():
     ])
     _users, clients, _memberships, *_rest = D1AdminRepository(client).dashboard(1, 50)
     assert clients[0].client_name == "Todo List"
+
+
+def test_d1_dashboard_binds_literal_search_for_count_and_pagination():
+    client = FakeClient([{"rows": [{"count": 2}]}, {"rows": []}, {"rows": []}, {"rows": []}])
+    D1AdminRepository(client).dashboard(2, 1, "a_b")
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.execute(
+            "CREATE TABLE users "
+            "(id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, email TEXT)"
+        )
+        db.executemany(
+            "INSERT INTO users VALUES (?, ?, ?, ?)",
+            [
+                (1, "a_b", "One", None),
+                (2, "axb", "Two", None),
+                (3, "third", "Three", "A_B@example.test"),
+            ],
+        )
+        _, count_sql, count_params = client.statements[0]
+        _, page_sql, page_params = client.statements[1]
+        assert db.execute(count_sql, count_params).fetchone() == (2,)
+        assert [row[0] for row in db.execute(page_sql, page_params)] == [3]

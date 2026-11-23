@@ -132,14 +132,17 @@ def main():
         user = db.session.scalar(db.select(User).where(User.username == name))
         _, token = create_web_session(user)
         db.session.commit()
-        response = redirect("/account/community")
+        response = redirect("/account#email")
         set_session_cookie(response, token)
         return response
 
     @application.get("/preview/phone")
     def phone():
-        path = request.args.get("page", "/account/community")
-        if path not in {"/", "/login", "/register", "/account", "/account/community"}:
+        path = request.args.get("page", "/account#email")
+        if path not in {
+            "/", "/login", "/register", "/account",
+            "/account#email", "/account#invitations", "/account/community",
+        }:
             abort(404)
         return (
             '<!doctype html><title>390px preview</title>'

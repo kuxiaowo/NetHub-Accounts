@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ t("编辑用户 {username}", username=target.username) }} · NetHub Accounts{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>{{ t("编辑用户") }}</h1>
+  <p><strong>{{ target.display_name }}</strong> · @{{ target.username }} · ID {{ target.id }}</p>
+  <form method="post" action="{{ url_for('web.admin_edit_user', user_id=target.id, **list_params) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ t("临时密码") }}
+      <input type="password" name="temporary_password" autocomplete="new-password" minlength="8" maxlength="128" required aria-describedby="password-help">
+    </label>
+    <p class="field-help" id="password-help">{{ t("使用 8–128 个字符。设置后会退出该用户的现有会话，下次登录时须修改密码。") }}</p>
+    <div class="actions">
+      <button class="button" type="submit">{{ t("设置临时密码") }}</button>
+      <a class="button secondary" href="{{ url_for('web.admin', _anchor='users', **list_params) }}">{{ t("返回用户列表") }}</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -4,6 +4,15 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='account.css') }}">
 <script src="{{ url_for('static', filename='avatar.js', v='cropper4') }}" defer></script>
 {% endblock %}
+{% block language_switch %}
+  {% if issued_invitation %}
+    <form method="post" action="{{ url_for('governance.display_invitation', lang='zh' if language == 'en' else 'en', _anchor='invitations') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="invite" value="{{ issued_invitation.token }}">
+      <button class="preference-control language-toggle" type="submit" aria-label="{{ '切换到中文' if language == 'en' else 'Switch to English' }}">{{ '中文' if language == 'en' else 'EN' }}</button>
+    </form>
+  {% else %}{{ super() }}{% endif %}
+{% endblock %}
 {% block content %}
 <div class="account-page">
   <header class="account-heading">
@@ -12,8 +21,13 @@
   <div class="account-layout">
     <aside class="account-sidebar">
       <nav class="account-nav" aria-label="{{ t("账号设置导航") }}">
-        <a href="#profile" aria-current="page">{{ t("个人资料") }}</a>
-        <a href="{{ url_for('governance.community') }}">{{ t("邮箱与邀请") }}</a>
+        <a href="#profile">{{ t("个人资料") }}</a>
+        {% if governance_details %}
+          <a href="#email">{{ t("邮箱验证") }}</a>
+          {% if governance_details.show_invitations %}
+            <a href="#invitations">{{ t("邀请朋友") }}</a>
+          {% endif %}
+        {% endif %}
         <a href="#security">{{ t("账号安全") }}</a>
         <a href="#websites">{{ t("已使用的网站") }}</a>
       </nav>
@@ -66,7 +80,7 @@
             </form>
           </div>
         </details>
-        <form class="account-profile-form" method="post">
+        <form class="account-profile-form" method="post" action="{{ url_for('web.account', next=request.args.get('next')) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="profile">
           <div class="account-fields">
             <label>{{ t("用户名") }}<input value="{{ current_user.username }}" readonly aria-describedby="username-help"><span id="username-help" class="field-help">{{ t("用于登录，无法在此修改。") }}</span></label>
@@ -75,14 +89,16 @@
           <div class="account-form-actions"><button class="button" type="submit">{{ t("保存资料") }}</button></div>
         </form>
       </section>
-      <section class="panel account-panel"><h2>{{ t("邮箱与邀请") }}</h2><p>{{ t("验证邮箱后可在 Wiki 发言。") }}{% if config.REGISTRATION_MODE == "invite" %} {{ t("首次验证满 72 小时后可邀请。") }}{% endif %}</p><a class="button" href="{{ url_for('governance.community') }}">{{ t("管理邮箱与邀请") }}</a></section>
+      {% if governance_details %}
+        {% include "_account_governance.html" %}
+      {% endif %}
       <section id="security" class="panel account-panel" aria-labelledby="security-title">
         <div class="account-section-heading"><div><h2 id="security-title">{{ t("账号安全") }}</h2></div></div>
         <details class="account-disclosure password-disclosure" {% if current_user.must_change_password or (request.method == 'POST' and request.form.get('action') == 'password') %}open{% endif %}>
           <summary>{{ t("设置新密码") if current_user.must_change_password else t("修改密码") }} <span class="disclosure-hint">{% if current_user.must_change_password %}{{ t("需要处理") }}{% else %}{{ t("保护账号安全") }}{% endif %}</span></summary>
           <div class="account-disclosure-body">
             {% if current_user.must_change_password %}<p class="warning-text">{{ t("当前使用的是临时密码，修改后才能继续进入应用。") }}</p>{% endif %}
-            <form class="account-password-form" method="post">
+            <form class="account-password-form" method="post" action="{{ url_for('web.account', next=request.args.get('next')) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="password">
               <label>{{ t("当前密码") }}<input type="password" name="current_password" autocomplete="current-password" required></label>
               <div class="account-fields">
