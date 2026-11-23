@@ -7,17 +7,15 @@
 {% block content %}
 <div class="account-page">
   <header class="account-heading">
-    <p class="eyebrow classic-only">MY ACCOUNT</p>
     <h1>{{ t("个人资料") }}</h1>
-    <p class="classic-only">{{ t("管理你的统一头像、显示名称和账号安全。") }}</p>
   </header>
   <div class="account-layout">
     <aside class="account-sidebar">
       <nav class="account-nav" aria-label="{{ t("账号设置导航") }}">
-        <a href="#profile" aria-current="page">{{ t("个人资料") }} <span aria-hidden="true">↗</span></a>
+        <a href="#profile" aria-current="page">{{ t("个人资料") }}</a>
         <a href="{{ url_for('governance.community') }}">{{ t("邮箱与邀请") }}</a>
-        <a href="#security">{{ t("账号安全") }} <span aria-hidden="true">↗</span></a>
-        <a href="#websites">{{ t("已使用的网站") }} <span aria-hidden="true">↗</span></a>
+        <a href="#security">{{ t("账号安全") }}</a>
+        <a href="#websites">{{ t("已使用的网站") }}</a>
       </nav>
 
       <a class="account-home-link" href="{{ url_for('web.home') }}">{{ t("返回网站首页 →") }}</a>
@@ -32,7 +30,7 @@
             <img src="{{ url_for('web.public_avatar', subject=current_user.sub) }}" alt="{{ t("当前头像") }}" data-avatar-current-image>
             <canvas width="192" height="192" data-avatar-live-canvas hidden></canvas>
           </span>
-          <div><h3>{{ current_user.display_name }}</h3><p>@{{ current_user.username }}</p><span class="field-help">{{ t("头像和显示名称用于已接入的网站。") }}</span></div>
+          <div><h3>{{ current_user.display_name }}</h3><p>@{{ current_user.username }}</p></div>
         </div>
         <details class="account-disclosure avatar-disclosure">
           <summary>{{ t("更换头像") }} <span class="disclosure-hint">{{ t("图片或文字头像") }}</span></summary>

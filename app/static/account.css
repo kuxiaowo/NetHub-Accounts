@@ -8,8 +8,6 @@
 .account-nav { display: grid; gap: 6px; }
 .account-nav a { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; color: var(--ink); border-radius: 10px; font-size: 14px; font-weight: 700; }
 .account-nav a:hover, .account-nav a:focus-visible { background: #e8edfb; color: var(--brand); }
-.account-nav a span { color: #98a7c2; }
-.account-sidebar > p { margin: 24px 14px 16px; font-size: 13px; line-height: 1.8; color: var(--muted); }
 .account-home-link { display: inline-block; margin: 0 14px; font-size: 13px; font-weight: 700; }
 .account-sections { min-width: 0; display: grid; gap: 24px; }
 .account-page .account-panel { margin: 0; padding: 28px 32px; border-radius: 20px; box-shadow: 0 4px 20px rgba(25,45,90,.025); scroll-margin-top: 24px; min-width: 0; }
@@ -68,7 +66,7 @@
   .account-sidebar { position: static; }
   .account-nav { display: flex; flex-wrap: wrap; gap: 8px; }
   .account-nav a { background: #eaf0fb; padding: 10px 14px; }
-  .account-nav a span, .account-sidebar > p, .account-home-link { display: none; }
+  .account-home-link { display: none; }
 }
 @media (max-width: 540px) {
   .account-heading { margin-bottom: 22px; }

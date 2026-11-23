@@ -1,5 +1,10 @@
 (() => {
   const messages = {
+  "深色模式": "Dark mode",
+  "浅色": "Light",
+  "深色": "Dark",
+  "切换浅色主题": "Switch to light theme",
+  "切换深色主题": "Switch to dark theme",
   "5xx 错误率": "5xx error rate",
   "P95 耗时": "P95 duration",
   "{bucket}：{count} 次": "{bucket}: {count} requests",
