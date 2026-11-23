@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-{% set invite_registration = registration_enabled and config.REGISTRATION_MODE == "invite" %}
 <section class="panel">
   <h1>{{ t("账号与社区管理") }}</h1>
   <p>
@@ -11,7 +10,9 @@
     {% else %}
       {{ t("当前开放自由注册。") }}
     {% endif %}
-    {{ t("邮箱验证后才能在 Wiki 评论、提交动态与公开简介或发送私信。") }}
+    {{ t("提交 Wiki 动态与公开简介需要验证邮箱。") }}
+    {% if features.comments %}{{ t("发表评论需要验证邮箱。") }}{% endif %}
+    {% if features.messages %}{{ t("发送私信需要验证邮箱。") }}{% endif %}
     {% if invite_registration %}{{ t("首次验证满 72 小时后才能邀请。") }}{% endif %}
   </p>
   <p>

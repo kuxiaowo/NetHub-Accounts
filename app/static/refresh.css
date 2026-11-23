@@ -1,6 +1,8 @@
 /* Shared NetHub identity and accessible light / dark surfaces. */
 :root {
   color-scheme:light;
+  --site-header-height:56px;
+  scroll-padding-top:var(--site-header-height);
   --ink:#20252c;
   --muted:#536071;
   --line:#ccd3de;
@@ -111,10 +113,18 @@ button,a,input,select,textarea,summary {
 .skip-link:focus {
   top:8px
 }
+@media screen {
+  :root:not(:has(.site-header :focus-visible, .nav-account[open])) {
+    --header-offset:var(--header-scroll-offset,0px)
+  }
+}
 .site-header {
+  position:sticky;
+  top:var(--header-offset,0px);
+  z-index:10;
   height:auto;
-  min-height:76px;
-  padding:14px max(24px,calc((100% - 1120px)/2));
+  min-height:56px;
+  padding:6px max(24px,calc((100% - 1120px)/2));
   gap:22px;
   background:var(--site-bar-bg);
   border-bottom:1px solid var(--line)
@@ -515,6 +525,7 @@ footer a {
   gap:28px
 }
 .account-sidebar {
+  top:calc(var(--site-header-height) + var(--header-offset,0px) + 24px);
   padding-top:3px
 }
 .account-nav {
@@ -526,7 +537,7 @@ footer a {
   border:1px solid transparent;
   border-radius:8px
 }
-.account-nav a:hover,.account-nav a[aria-current=page] {
+.account-nav a:hover,.account-nav a[aria-current=location] {
   background:var(--soft);
   color:var(--brand);
   border-color:var(--line);
@@ -700,10 +711,10 @@ footer a {
 }
 @media(max-width:600px) {
   .site-header {
-    padding:13px 16px;
+    padding:6px 12px;
     flex-wrap:wrap;
-    gap:14px;
-    min-height:68px
+    gap:4px 10px;
+    min-height:52px
   }
   .site-header nav {
     margin-left:auto;

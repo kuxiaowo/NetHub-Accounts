@@ -1,0 +1,61 @@
+<section id="email" class="panel account-panel" aria-labelledby="email-title">
+  <div class="account-section-heading">
+    <h2 id="email-title">{{ t("邮箱验证") }}</h2>
+    <span class="status-badge {{ 'verified' if current_user.email_verified_at else 'pending' }}">{{ t('已验证') if current_user.email_verified_at else t('未验证') }}</span>
+  </div>
+  {{ show_flashes('email') }}
+  <form method="post" action="{{ url_for('governance.email_request') }}" class="email-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ t("邮箱地址") }}<input type="email" name="email" value="{{ current_user.email or '' }}" maxlength="254" autocomplete="email" required></label>
+    <button class="button" type="submit">{{ t("发送验证邮件") }}</button>
+  </form>
+  <p class="field-help">{{ t("验证后可在 Wiki 发言。链接 24 小时有效。") }}</p>
+  <p class="field-help">{{ t("重发间隔 60 秒，每日最多 5 次。") }}</p>
+  {% if governance_details.delivery %}
+    <p class="delivery-status" role="status">{{ t({'pending':'等待发送','sending':'正在发送','sent':'已发送，请检查收件箱和垃圾邮件','failed':'发送失败，请稍后重试'}.get(governance_details.delivery.status, '状态未知')) }}</p>
+  {% endif %}
+</section>
+
+{% if governance_details.show_invitations %}
+<section id="invitations" class="panel account-panel" aria-labelledby="invite-title">
+  <div class="account-section-heading"><h2 id="invite-title">{{ t("邀请朋友") }}</h2></div>
+  {{ show_flashes('invitations') }}
+  <div class="invitation-facts">
+    <div><strong>{{ t("每日 1 份") }}</strong><span>{{ t("北京时间零点重置") }}</span></div>
+    <div><strong>{{ t("7 天有效") }}</strong><span>{{ t("每份仅可使用一次") }}</span></div>
+    <div><strong>{{ t("验证满 72 小时") }}</strong><span>{{ t("首次验证后开启") }}</span></div>
+  </div>
+  {% if issued_invitation %}
+    <h3>{{ t("邀请已生成") }}</h3>
+    <p>{{ t("请复制并妥善保存；完整凭证只展示这一次，有效至") }} {{ issued_invitation.expires|beijing_time }}。</p>
+    <label>{{ t("邀请链接") }}<input readonly value="{{ issued_invitation.link }}"></label>
+  {% elif governance_details.blocker %}
+    <p class="field-help" role="status">{{ t(governance_details.blocker) }}</p>
+    <button class="button" type="button" disabled>{{ t("生成今日邀请") }}</button>
+  {% else %}
+    <form method="post" action="{{ url_for('governance.issue', _anchor='invitations') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div><button class="button" type="submit">{{ t("生成今日邀请") }}</button></div>
+    </form>
+  {% endif %}
+  <p class="field-help">{{ t("撤销邀请不返还当日额度。") }}</p>
+  <h3>{{ t("邀请记录") }}</h3>
+  <ul class="invitation-list">
+    {% for item in governance_details.invitations %}
+      <li>
+        <time>{{ item.issued_day }}</time>
+        <span>{% if item.redeemed_at %}{{ t("已使用") }}{% elif item.revoked_at %}{{ t("已撤销") }}{% elif item.expires_at <= governance_details.now %}{{ t("已过期") }}{% else %}{{ t('有效至 {date}', date=item.expires_at|beijing_time) }}{% endif %}</span>
+        {% if not item.redeemed_at and not item.revoked_at and item.expires_at > governance_details.now %}
+          <form method="post" action="{{ url_for('governance.revoke', invitation_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button secondary small" type="submit">{{ t("撤销") }}</button>
+          </form>
+        {% endif %}
+      </li>
+    {% else %}
+      <li class="muted">{{ t("尚未生成邀请。") }}</li>
+    {% endfor %}
+  </ul>
+  <a class="policy-link" href="{{ url_for('governance.policy') }}">{{ t("管理与申诉说明") }}</a>
+</section>
+{% endif %}

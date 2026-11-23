@@ -11,6 +11,11 @@ from .account_repository import AccountConflictError, D1AccountRepository
 from .d1_gateway import D1GatewayClient, Statement
 from .models import AuditLog, BackchannelJob, OAuth2Client
 
+USER_SEARCH = """(CAST(users.id AS TEXT) = :query
+    OR instr(lower(users.username), lower(:query)) > 0
+    OR instr(lower(users.display_name), lower(:query)) > 0
+    OR instr(lower(users.email), lower(:query)) > 0)"""
+
 
 class D1AdminRepository:
     def __init__(self, client: D1GatewayClient):
@@ -29,15 +34,18 @@ class D1AdminRepository:
                 setattr(item, key, value)
         return item
 
-    def dashboard(self, page: int, per_page: int):
-        count_rows = self.client.execute("SELECT COUNT(*) AS count FROM users").get("rows") or []
+    def dashboard(self, page: int, per_page: int, query: str = ""):
+        # D1 binds numbered parameters. Reuse the same search for the count and page.
+        where = " WHERE " + USER_SEARCH.replace(":query", "?1") if query else ""
+        params = [query] if query else []
+        count_rows = self.client.execute("SELECT COUNT(*) AS count FROM users" + where, params).get("rows") or []
         total_users = int(count_rows[0]["count"]) if count_rows else 0
         total_pages = max(1, (total_users + per_page - 1) // per_page)
         page = min(page, total_pages)
         user_rows = (
             self.client.execute(
-                "SELECT * FROM users ORDER BY id LIMIT ? OFFSET ?",
-                [per_page, (page - 1) * per_page],
+                "SELECT * FROM users" + where + " ORDER BY id LIMIT ? OFFSET ?",
+                [*params, per_page, (page - 1) * per_page],
             ).get("rows")
             or []
         )

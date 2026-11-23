@@ -43,6 +43,27 @@ def test_email_unverified_and_72_hours_block_invites(app):
             create_invitation(user.id)
 
 
+def test_account_shows_only_own_invitations_and_revokes_in_place(app, client):
+    from tests.test_accounts import login
+
+    with app.test_request_context():
+        alice = eligible()
+        own_id = create_invitation(alice.id)[0].id
+        other = create_user("other")
+        other.email_verified_at = other.first_email_verified_at = utc_now() - timedelta(days=4)
+        db.session.commit()
+        other_id = create_invitation(other.id)[0].id
+    login(client)
+    page = client.get("/account")
+    own_url = f"/account/invitations/{own_id}/revoke"
+    other_url = f"/account/invitations/{other_id}/revoke"
+    assert own_url in page.text and other_url not in page.text
+    form = {"csrf_token": csrf_from(page)}
+    assert client.post(other_url, data=form).status_code == 404
+    assert client.post(own_url, data=form).headers["Location"] == "/account#invitations"
+    assert "已撤销" in client.get("/account").text
+
+
 def test_verification_get_does_not_consume_and_post_is_one_time(app, client):
     with app.test_request_context():
         user_id = create_user().id
@@ -59,6 +80,30 @@ def test_verification_get_does_not_consume_and_post_is_one_time(app, client):
     with app.app_context():
         assert db.session.get(User, user_id).email_verified_at is not None
     assert client.post(path, data={"csrf_token": csrf_from(page)}).status_code == 400
+
+
+def test_signed_in_email_confirmation_shows_verified_state_without_invitations(app, client):
+    from tests.test_accounts import login
+
+    app.config["REGISTRATION_MODE"] = "open"
+    with app.test_request_context():
+        user = create_user()
+        request_verification(user.id, "confirmed@example.test")
+        path = urlsplit(
+            cipher()
+            .decrypt(db.session.scalar(select(EmailJob)).payload_encrypted.encode())
+            .decode()
+        )
+    login(client)
+    confirmation = path.path + "?" + path.query
+    page = client.get(confirmation)
+    response = client.post(
+        confirmation, data={"csrf_token": csrf_from(page)}, follow_redirects=True
+    )
+    assert response.history[0].headers["Location"] == "/account#email"
+    panel = response.text.split('<section id="email"', 1)[1].split("</section>", 1)[0]
+    assert "邮箱验证成功" in panel and 'class="status-badge verified"' in panel
+    assert 'value="confirmed@example.test"' in panel and "邀请" not in response.text
 
 
 @pytest.mark.parametrize("mode", ["invite", "open"])
@@ -126,21 +171,26 @@ def test_old_link_does_not_consume_invitation_during_open_registration(app, clie
         assert db.session.get(User, item.invitee_id).username == "invitee"
 
 
-def test_open_mode_pauses_invitation_issuance_until_restored(app, client):
+@pytest.mark.parametrize("enabled,mode", [(True, "open"), (False, "invite"), (False, "open")])
+def test_disabled_invites_are_hidden_until_restored(app, client, enabled, mode):
     from tests.test_accounts import login
 
     with app.test_request_context():
         eligible()
     assert login(client).status_code == 302
-    app.config["REGISTRATION_MODE"] = "open"
-    page = client.get("/account/community")
-    assert "邀请功能已暂停" in page.text and "生成今日邀请" not in page.text
+    app.config.update(REGISTRATION_ENABLED=enabled, REGISTRATION_MODE=mode)
+    page = client.get("/account")
+    assert 'id="email"' in page.text and 'class="status-badge verified"' in page.text
+    assert "邀请" not in page.text and "invitations" not in page.text
     form = {"csrf_token": csrf_from(page)}
-    client.post("/account/invitations", data=form)
+    blocked = client.post("/account/invitations", data=form)
+    assert blocked.headers["Location"] == "/account"
     with app.app_context():
         assert db.session.scalar(select(Invitation)) is None
 
-    app.config["REGISTRATION_MODE"] = "invite"
+    app.config.update(REGISTRATION_ENABLED=True, REGISTRATION_MODE="invite")
+    restored = client.get("/account")
+    assert 'href="#invitations"' in restored.text and 'id="invitations"' in restored.text
     assert "邀请已生成" in client.post("/account/invitations", data=form).text
 
 
@@ -232,3 +282,42 @@ def test_client_status_requires_credentials_and_app_membership(app, client):
     assert response.status_code == 200
     assert response.json["active"] is True
     assert response.json["emailVerified"] is False
+def test_admin_community_controls_are_independent_and_persistent(app, client):
+    from tests.test_accounts import login
+    with app.app_context():
+        create_user(admin=True)
+        create_user("member")
+    public = app.test_client()
+    path = "/api/community-features"
+    assert public.get(path).json == {"invitations": True, "comments": False, "messages": False}
+    login(client)
+    url = "/admin/community-features/"
+    csrf = csrf_from(client.get("/admin"))
+    assert client.post(url + "messages", data={"enabled": "1"}).status_code == 400
+    assert public.post(url + "comments", data={"enabled": "1"}).status_code in (302, 303)
+    member = app.test_client()
+    login(member, username="member")
+    assert (
+        member.post(
+            url + "comments", data={"csrf_token": csrf_from(member.get("/account")), "enabled": "1"}
+        ).status_code
+        == 403
+    )
+    for name, value in (
+        ("comments", "1"),
+        ("invitations", "0"),
+        ("messages", "1"),
+        ("comments", "0"),
+    ):
+        assert (
+            client.post(url + name, data={"csrf_token": csrf, "enabled": value}).status_code == 303
+        )
+    assert public.get(path).json == {"invitations": False, "comments": False, "messages": True}
+    assert 'name="invite"' not in public.get("/register").text
+    assert 'id="invitations"' not in client.get("/account").text
+    response = client.post(url + "invitations", data={"csrf_token": csrf, "enabled": "1"})
+    assert response.status_code == 303
+    assert 'name="invite"' in public.get("/register").text
+    app.config["REGISTRATION_ENABLED"] = False
+    assert public.get(path).json["invitations"] is False
+    assert public.get("/register").status_code == 403

@@ -97,12 +97,13 @@ def test_english_account_does_not_translate_user_content(app, client):
     assert ">登录</h3>" in page.text
     assert 'value="登录"' in page.text
     assert "Save profile" in page.text
-    community = client.get("/account/community")
-    assert "Email verification" in community.text
-    assert "Verify your email first." in community.text
-    assert "24 hours" in community.text and "60 seconds" in community.text
-    assert "72-hour wait" in community.text and "Valid for 7 days" in community.text
-    assert 'name="csrf_token"' in community.text
+    assert '<section id="email"' in page.text and '<section id="invitations"' in page.text
+    assert "Email verification" in page.text and "Email and invitations" not in page.text
+    assert "Verify your email first." in page.text
+    assert "24 hours" in page.text and "60 seconds" in page.text
+    assert "72-hour wait" in page.text and "Valid for 7 days" in page.text
+    assert 'name="csrf_token"' in page.text
+    assert client.get("/account/community").headers["Location"] == "/account#email"
 
 
 def test_email_failure_is_english_without_changing_limits(app, client):
@@ -112,13 +113,14 @@ def test_email_failure_is_english_without_changing_limits(app, client):
         user.email_verified_at = user.first_email_verified_at = utc_now() - timedelta(days=5)
         db.session.commit()
     login(client)
-    page = client.get("/account/community?lang=en")
+    page = client.get("/account?lang=en")
     response = client.post(
         "/account/email",
         data={"csrf_token": csrf_from(page), "email": "invalid"},
         follow_redirects=True,
     )
-    assert "Enter a valid email address." in response.text
+    email_panel = response.text.split('<section id="email"', 1)[1].split("</section>", 1)[0]
+    assert 'role="alert"' in email_panel and "Enter a valid email address." in email_panel
 
 
 def test_invalid_language_uses_safe_default(client):
@@ -136,9 +138,13 @@ def test_open_registration_is_localized_in_english(app, client):
     with app.app_context():
         create_user(admin=True)
     login(client)
-    assert "Invitations are paused." in client.get("/admin").text
-    community = client.get("/account/community")
-    assert "Invitations are paused." in community.text and "72-hour wait" not in community.text
+    admin = client.get("/admin").text
+    assert "Invitation-only registration" in admin
+    invitation_form = admin.split('action="/admin/community-features/invitations"')[1]
+    assert 'aria-checked="false"' in invitation_form.split("</form>")[0]
+    account = client.get("/account")
+    assert "Email verification" in account.text
+    assert "invit" not in account.text.lower()
 
 
 @pytest.mark.parametrize(
@@ -172,11 +178,19 @@ def test_switch_language_on_invitation_result_preserves_link_and_quota(app, clie
     login(client)
     csrf = csrf_from(client.get("/account"))
     page = client.post("/account/invitations", data={"csrf_token": csrf})
+    assert '<section id="email"' in page.text and '<section id="invitations"' in page.text
+    assert 'class="account-profile-form" method="post" action="/account"' in page.text
     raw = re.search(r'name="invite" value="([^"]+)"', page.text)[1]
     action = unescape(re.search(r'<form method="post" action="([^"]+/display[^"]*)"', page.text)[1])
     english = client.post(action, data={"csrf_token": csrf_from(page), "invite": raw})
     assert english.status_code == 200 and english.headers["Content-Language"] == "en"
     assert "/register?invite=" + raw in english.text
     assert english.headers["Cache-Control"] == "no-store"
+    assert english.headers["Referrer-Policy"] == "no-referrer"
+    assert raw not in client.get("/account").text
+    app.config["REGISTRATION_MODE"] = "open"
+    paused = client.post(action, data={"csrf_token": csrf_from(page), "invite": raw})
+    assert paused.status_code == 302 and paused.headers["Location"] == "/account"
+    assert raw not in paused.text and "/account/invitations" not in client.get("/account").text
     with app.app_context():
         assert len(db.session.scalars(select(Invitation)).all()) == 1

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from html import unescape
+from urllib.parse import parse_qs, urlsplit
 
 from sqlalchemy import event, select
 
@@ -329,6 +331,46 @@ def test_admin_users_are_paginated_and_memberships_are_batch_loaded(app, client)
     assert all(" IN (" in sql for sql in membership_queries)
     assert len(user_page_queries) == 3
     assert all(" LIMIT " in sql and " OFFSET " in sql for sql in user_page_queries)
+
+
+def test_user_search_and_password_edit_keep_the_selected_page(app, client):
+    with app.app_context():
+        create_user("admin", admin=True)
+        first = create_user("demo_one")
+        first.display_name = "测试成员甲"
+        second = create_user("demo_two")
+        second.display_name = "测试成员乙"
+        second.email = "person%_two@example.test"
+        db.session.commit()
+        user_id = second.id
+    login(client, "admin")
+    for term in ["PERSON%_", "%", "_two", str(user_id), "成员乙"]:
+        html = client.get("/admin", query_string={"q": term}).text
+        assert "测试成员乙" in html and "测试成员甲" not in html
+    assert "没有找到匹配的用户。" in client.get("/admin?q=absent").text
+    params = {"q": "DEMO", "page": 2, "per_page": 1}
+    html = unescape(client.get("/admin", query_string=params).text)
+    assert "找到 2 个用户" in html and "测试成员乙" in html and "测试成员甲" not in html
+    assert 'name="temporary_password"' not in html
+    edit_url = html.split(f'href="/admin/users/{user_id}/edit', 1)[1].split('"', 1)[0]
+    edit_url = f"/admin/users/{user_id}/edit" + edit_url
+    edit = client.get(edit_url)
+    assert "测试成员乙" in edit.text and 'name="temporary_password"' in edit.text
+    invalid = client.post(
+        edit_url, data={"csrf_token": csrf_from(edit), "temporary_password": "short"}
+    )
+    assert invalid.status_code == 400 and 'type="password"' in invalid.text
+    saved = client.post(
+        edit_url, data={"csrf_token": csrf_from(edit), "temporary_password": "temporary-456"}
+    )
+    dest = urlsplit(saved.location)
+    assert dest.path == "/admin" and dest.fragment == "users"
+    assert parse_qs(dest.query) == {"q": ["DEMO"], "page": ["2"], "per_page": ["1"]}
+    result = client.get(saved.location)
+    assert "临时密码已设置" in result.text and "测试成员乙" in result.text
+    member = app.test_client()
+    login(member, "demo_one")
+    assert member.get(edit_url).status_code == 403
 
 
 def test_admin_can_permanently_delete_inactive_account(app, client):

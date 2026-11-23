@@ -1,3 +1,9 @@
+{% macro show_flashes(section='') -%}
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    {% set scope, _, kind = category.rpartition(':') %}
+    {% if scope == section %}<div class="flash {{ kind }}" role="{{ 'alert' if kind == 'error' else 'status' }}">{{ t(message) }}</div>{% endif %}
+  {% endfor %}
+{%- endmacro %}
 <!doctype html>
 <html lang="{{ 'en' if language == 'en' else 'zh-CN' }}">
 <head>
@@ -12,9 +18,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='avatar.css', v='header-avatar') }}">
   <script src="{{ url_for('static', filename='avatar-fallback.js') }}" defer></script>
   {% block head %}{% endblock %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='preferences.css', v='single-ui') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='single-ui') }}">
-  <script blocking="render" src="{{ url_for('static', filename='preferences.js', v='single-ui') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='preferences.css', v='compact-header') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='refresh.css', v='scroll-distance') }}">
+  <script blocking="render" src="{{ url_for('static', filename='preferences.js', v='scroll-distance') }}"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">{{ t("跳到内容") }}</a>
@@ -69,9 +75,7 @@
     {% endif %}
   </header>
   <main class="container" id="main-content">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}<div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ t(message) }}</div>{% endfor %}
-    {% endwith %}
+    {{ show_flashes() }}
     {% block content %}{% endblock %}
   </main>
   <footer><span>{{ t("一个账号，连接 NetHub。") }}</span><a href="{{ url_for('governance.policy') }}"{% if request.endpoint == 'governance.policy' %} aria-current="page"{% endif %}>{{ t("账号与隐私") }}</a></footer>

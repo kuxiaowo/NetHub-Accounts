@@ -30,6 +30,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 
 from .backchannel import queue_logout
+from .community_features import community_features, invite_registration_enabled
 from .extensions import db
 from .models import (
     AppMembership,
@@ -41,7 +42,7 @@ from .models import (
     User,
     utc_now,
 )
-from .routes import admin_required, login_required, require_csrf
+from .routes import admin_required, login_required, render_account_page, require_csrf
 from .security import (
     audit,
     client_ip,
@@ -114,7 +115,7 @@ def normalize_email(value: str) -> str:
 
 
 def invitation_blocker(user: User, now=None) -> str:
-    if current_app.config["REGISTRATION_MODE"] == "open":
+    if not invite_registration_enabled():
         return "邀请功能已暂停"
     now = now or utc_now()
     if not user.is_active or user.merged_into_user_id:
@@ -343,26 +344,31 @@ def account_status():
 @governance.get("/account/community")
 @login_required
 def community():
-    invitations = db.session.scalars(
-        select(Invitation)
-        .where(Invitation.inviter_id == g.current_user.id)
-        .order_by(Invitation.id.desc())
-        .limit(30)
-    ).all()
+    return redirect(url_for("web.account", _anchor="email"))
+
+
+def personal_governance_details(user: User) -> dict:
     delivery = db.session.scalar(
         select(EmailJob)
         .join(EmailVerification)
-        .where(EmailVerification.user_id == g.current_user.id)
+        .where(EmailVerification.user_id == user.id)
         .order_by(EmailJob.id.desc())
         .limit(1)
     )
-    return render_template(
-        "community.html",
-        invitations=invitations,
-        blocker=invitation_blocker(g.current_user),
-        now=utc_now(),
-        delivery=delivery,
-    )
+    details = {"delivery": delivery, "show_invitations": invite_registration_enabled()}
+    if details["show_invitations"]:
+        now = utc_now()
+        details.update(
+            invitations=db.session.scalars(
+                select(Invitation)
+                .where(Invitation.inviter_id == user.id)
+                .order_by(Invitation.id.desc())
+                .limit(30)
+            ).all(),
+            blocker=invitation_blocker(user, now),
+            now=now,
+        )
+    return details
 
 
 @governance.get("/admin/invitations")
@@ -385,11 +391,13 @@ def invitation_relations():
 @login_required
 def issue():
     require_csrf()
+    if not invite_registration_enabled():
+        return redirect(url_for("web.account"))
     try:
         item, raw = create_invitation(g.current_user.id)
     except (ValueError, IntegrityError) as exc:
-        flash(str(exc) if isinstance(exc, ValueError) else "今日额度已使用", "error")
-        return redirect(url_for("governance.community"))
+        flash(str(exc) if isinstance(exc, ValueError) else "今日额度已使用", "invitations:error")
+        return redirect(url_for("web.account", _anchor="invitations"))
     return invitation_result(item, raw)
 
 
@@ -398,6 +406,8 @@ def issue():
 def display_invitation():
     """Localize the already-visible invitation without issuing another one."""
     require_csrf()
+    if not invite_registration_enabled():
+        return redirect(url_for("web.account"))
     raw = request.form.get("invite", "")
     item = db.session.scalar(
         select(Invitation).where(
@@ -411,11 +421,12 @@ def display_invitation():
 
 def invitation_result(item, raw):
     response = current_app.make_response(
-        render_template(
-            "invitation_created.html",
-            invitation_token=raw,
-            link=current_app.config["OIDC_ISSUER"] + "/register?invite=" + raw,
-            expires=item.expires_at,
+        render_account_page(
+            issued_invitation={
+                "token": raw,
+                "link": current_app.config["OIDC_ISSUER"] + "/register?invite=" + raw,
+                "expires": item.expires_at,
+            },
         )
     )
     response.headers["Cache-Control"] = "no-store"
@@ -435,7 +446,8 @@ def revoke(invitation_id):
             abort(409, "已使用凭证不能撤销")
         item.revoked_at = item.revoked_at or utc_now()
         audit("invitation.revoked", target=g.current_user, details={"invitationId": item.id})
-    return redirect(url_for("governance.community"))
+    anchor = "invitations" if invite_registration_enabled() else None
+    return redirect(url_for("web.account", _anchor=anchor))
 
 
 @governance.post("/account/email")
@@ -449,10 +461,10 @@ def email_request():
     db.session.commit()
     try:
         request_verification(g.current_user.id, request.form.get("email", ""))
-        flash("验证邮件已加入发送队列，请查收；链接有效期为 24 小时。", "success")
+        flash("验证邮件已加入发送队列，请查收；链接有效期为 24 小时。", "email:success")
     except ValueError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("governance.community"))
+        flash(str(exc), "email:error")
+    return redirect(url_for("web.account", _anchor="email"))
 
 
 @governance.route("/email/verify", methods=["GET", "POST"])
@@ -492,8 +504,8 @@ def verify_email():
             audit("email.verified", target=user)
     except IntegrityError:
         abort(409, "邮箱已绑定其他账号")
-    flash("邮箱验证成功，请返回个人中心。", "success")
-    return redirect(url_for("web.account"))
+    flash("邮箱验证成功，请返回个人中心。", "email:success" if g.current_user else "success")
+    return redirect(url_for("web.account", _anchor="email"))
 
 
 @governance.post("/admin/users/<int:user_id>/restriction")
@@ -555,4 +567,7 @@ def restrict(user_id):
 
 @governance.get("/policy")
 def policy():
-    return render_template("community_policy.html")
+    features = community_features()
+    return render_template(
+        "community_policy.html", features=features, invite_registration=features["invitations"]
+    )

@@ -1,14 +1,16 @@
 # 邀请注册、邮箱与账号限制
 
-临时开放自由注册时，设置 `REGISTRATION_ENABLED=true` 和 `REGISTRATION_MODE=open`。生产服务器使用 `/srv/nethub/secrets/accounts.production.env`，修改后运行 `sudo systemctl restart nethub-accounts.service`。按仓库初始化脚本安装的用户服务使用项目根目录的 `.env`，对应命令为 `systemctl --user restart nethub-accounts.service`。
+系统管理员在 Accounts「账号管理 → 社区功能」独立切换邀请注册、Wiki 评论和 Wiki 私信。每次修改写入数据库与审计日志，刷新或重启后继续生效。首次使用时邀请沿用 `REGISTRATION_MODE`，评论和私信默认关闭。
 
 用未登录的浏览器打开 `/register` 即可查看当前表单。开放期间暂停生成和兑换邀请，旧邀请链接也进入自由注册流程。原有邀请按原到期时间计算。
 
-恢复邀请制时，保留 `REGISTRATION_ENABLED=true`，把 `REGISTRATION_MODE` 改回 `invite` 并重启服务。省略模式配置时默认使用邀请制。若要关闭整个注册入口，将 `REGISTRATION_ENABLED` 设为 `false` 并重启。
+开启「邀请注册」即可恢复邀请制。`REGISTRATION_ENABLED=false` 始终关闭整个注册入口。首次升级先执行现有 Alembic 迁移到 head，创建 `community_features` 表。
+
+Wiki 在用户读取和写入评论、私信前从 Accounts 的 `/api/community-features` 读取状态。关闭后保留历史记录，管理员仍可处理举报，普通用户仍可查看系统通知。Accounts 无法提供设置时，Wiki 暂停两项功能。联调时可通过 Wiki 的 `COMMUNITY_FEATURES_URL` 指定本地 Accounts 的完整设置接口地址。
 
 邀请模式下，普通账号通过单次邀请注册。北京时间每日最多生成一份凭证，撤销不退还额度，7 天有效；凭证只存摘要。首次邮箱验证满 72 小时才能邀请。两种注册模式都在同一 SQLite 写事务中完成建号、会话创建和验证邮件入队，邀请模式同时兑换凭证。
 
-用户入口：个人中心 →「邮箱与邀请」。可发送验证邮件、查看发送状态、生成或撤销邀请、查看公开微信申诉说明。验证邮件有效 24 小时；GET 仅显示确认页，带 CSRF 的 POST 才消费凭证。重发至少间隔 60 秒，每账号和邮箱每天最多 5 次。
+登录后通过「管理账号」进入个人中心。「邮箱验证」（`/account#email`）提供验证邮件发送和投递状态。仅在开放邀请注册时，个人中心才显示「邀请朋友」（`/account#invitations`）入口、邀请凭证与历史记录，用户可在此生成或撤销自己的邀请。验证邮件有效 24 小时，GET 显示确认页，带 CSRF 的 POST 才消费凭证。重发至少间隔 60 秒，每账号和邮箱每天最多 5 次。
 
 管理员入口：账号管理可暂停/恢复邀请、全站封禁/解封，并填写原因及期限。封禁撤销中央会话与令牌，同时排队发送各站退出通知；各站受保护请求再查询中央状态。邀请关系页仅管理员可访问。旧的后台建号和 toggle 接口已移除；永久删除只允许停用且没有待处理退出通知的账号。新增管理员使用受控服务器命令 `python -m app.cli set-admin --user-id <ID> --enabled --reason <原因>`，不能移除最后一位有效管理员。
 

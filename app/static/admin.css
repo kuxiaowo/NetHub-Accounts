@@ -1,5 +1,5 @@
 .admin-users-table {
-  min-width: 1040px;
+  min-width: 720px;
 }
 
 .admin-users-table th,
@@ -15,16 +15,17 @@
   white-space: normal;
 }
 
-.password-reset-form,
-.user-actions {
+.admin-user-search {
   display: flex;
-  flex-flow: row nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  margin-bottom: 16px;
 }
-
-.password-reset-form .compact {
-  min-width: 180px;
+.admin-user-search input[type="search"] {
+  flex: 1 1 190px;
+  min-width: 0;
+  max-width: 36ch;
 }
 
 .restriction-dialog {
@@ -170,8 +171,24 @@ body.restriction-dialog-open {
   }
 }
 
-@media (max-width: 720px) {
-  .admin-users-table {
-    min-width: 960px;
-  }
+.feature-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
 }
+.feature-row p { margin: 2px 0 0; }
+.feature-row button { display: inline-flex; flex: none; align-items: center; gap: 8px; }
+.feature-row button::before {
+  content: "";
+  width: 30px;
+  height: 18px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 9px 50%, white 5px, transparent 6px) #64748b;
+}
+.feature-row button[aria-checked="true"]::before {
+  background: radial-gradient(circle at 21px 50%, white 5px, transparent 6px) #3157d5;
+}
+.feature-row button[aria-checked="true"] { background: var(--soft); color: var(--brand); }

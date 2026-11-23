@@ -26,6 +26,6 @@ python -m pytest
 node --test tests/continue.test.cjs
 ```
 
-预览只绑定 `127.0.0.1`，使用临时数据库、临时签名密钥与合成账号，不读取项目 `.env`，没有邮件凭据。打开 `/preview/sign-in` 查看未验证账号，或 `/preview/sign-in?user=verified` 查看已验证账号。`/preview/phone?page=/account/community` 用于 390px 布局检查。
+预览只绑定 `127.0.0.1`，使用临时数据库、临时签名密钥与合成账号，不读取项目 `.env`，没有邮件凭据。打开 `/preview/sign-in` 查看未验证账号，或 `/preview/sign-in?user=verified` 查看已验证账号。`/preview/phone` 用于检查个人账号管理页在 390px 宽度下的布局。
 
 预览脚本单独允许同源 iframe；应用本身的 `X-Frame-Options: DENY` 保持不变。预览数据位于系统临时目录，每次启动重新生成。预览与测试不代表生产登录、真实邮件投递或外部应用退出通知已验收。
